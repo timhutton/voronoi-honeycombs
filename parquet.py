@@ -21,6 +21,17 @@ def makePolyData( verts, faces ):
     return pd
 
 
+def addSurface(renderer, verts, faces, red, green, blue):
+    """Add the specified surface to the renderer scene with the specified color."""
+    surface = makePolyData(verts, faces)
+    surfaceMapper = vtk.vtkPolyDataMapper()
+    surfaceMapper.SetInputData(surface)
+    surfaceActor = vtk.vtkActor()
+    surfaceActor.SetMapper(surfaceMapper)
+    surfaceActor.GetProperty().SetColor(red, green, blue)
+    renderer.AddActor(surfaceActor)
+
+
 def main():
     # setup a VTK scene
     ren = vtk.vtkRenderer()
@@ -50,14 +61,8 @@ def main():
         verts = v.vertices[indices]
         cell = scipy.spatial.ConvexHull(verts)
         faces = cell.simplices
+        addSurface(ren, verts, faces, random.random(), random.random(), random.random())
 
-        surface = makePolyData(verts, faces)
-        surfaceMapper = vtk.vtkPolyDataMapper()
-        surfaceMapper.SetInputData(surface)
-        surfaceActor = vtk.vtkActor()
-        surfaceActor.SetMapper(surfaceMapper)
-        surfaceActor.GetProperty().SetColor(random.random(), random.random(), random.random())
-        ren.AddActor(surfaceActor)
 
     iren.Start()
 
