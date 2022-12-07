@@ -1,6 +1,5 @@
 """Renders a Voronoi diagram from a list of points."""
 import itertools
-import numpy as np
 import random
 import scipy
 import vtk
@@ -35,11 +34,10 @@ def main():
     renWin.SetSize(800, 600)
 
     # make a list of 3D points
-    nx, ny, nz = (4, 3, 2)
-    x = np.linspace(0, nx, nx+1, endpoint=True)
-    y = np.linspace(0, ny, ny+1, endpoint=True)
-    z = np.linspace(0, nz, nz+1, endpoint=True)
-    pts = list(itertools.product(x,y,z))
+    nx, ny, nz = (5, 4, 3)
+    pts = list(itertools.product(range(nx), range(ny), range(nz)))
+    pts2 = [(x + 0.5, y + 0.5, z + 0.5) for x,y,z in pts] # extend cubic lattice to BCC
+    pts.extend(pts2)
 
     # make a Voronoi structure from them
     v = scipy.spatial.Voronoi(pts)
