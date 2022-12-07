@@ -51,11 +51,14 @@ def main():
 
     # make a list of 3D points
     #unit_cell = [(0, 0, 0)] # cubic lattice
-    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC
-    unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC
+    unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC
+    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC
     nx, ny, nz = (5, 4, 3)
-    offsets = list(itertools.product(range(nx), range(ny), range(nz)))
-    pts = [(x + ox, y + oy, z + oz) for x,y,z in unit_cell for ox,oy,oz in offsets]
+    internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
+    internal_pts = [(x + ox, y + oy, z + oz) for x,y,z in unit_cell for ox,oy,oz in internal_offsets]
+    all_offsets = list(itertools.product(range(-1, nx + 1), range(-1, ny + 1), range(-1, nz + 1)))
+    external_pts = [(x + ox, y + oy, z + oz) for x,y,z in unit_cell for ox,oy,oz in all_offsets if not (x + ox, y + oy, z + oz) in internal_pts]
+    pts = internal_pts + external_pts
 
     # make a Voronoi structure from them
     print("Finding Voronoi...")
@@ -63,7 +66,7 @@ def main():
 
     # add the finite cells to the scene
     print("Rendering...")
-    for reg_num in v.point_region:
+    for reg_num in v.point_region[:len(internal_pts)]: # only interested in the internal cells, to avoid boundary effects
         indices = v.regions[reg_num]
         if -1 in indices: # external region including point at infinity
             continue
@@ -72,7 +75,9 @@ def main():
         faces = cell.simplices
         addSurface(ren, verts, faces, random.random(), random.random(), random.random())
 
-
+    # render the scene and start the interaction loop
+    ren.GetActiveCamera().SetPosition(0.5, 10.5, 20.5)
+    ren.ResetCamera()
     iren.Start()
 
 
