@@ -50,9 +50,11 @@ def main():
     ren, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
 
     # make a list of 3D points
-    #unit_cell = [(0, 0, 0)] # cubic lattice
-    unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC
-    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC
+    #unit_cell = [(0, 0, 0)] # cubic lattice => cubes
+    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC => truncated octahedra
+    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC => rhombic dodecahedra
+    unit_cell = [(0,0,0), (0,0.5,0.5), (0.5,0,0.5), (0.5,0.5,0),
+                 (0.75,0.75,0.75), (0.75,0.25,0.25), (0.25,0.75,0.25), (0.25,0.25,0.75)] # diamond cubic => triakis truncated tetrahedra
     nx, ny, nz = (5, 4, 3)
     internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
     internal_pts = [(x + ox, y + oy, z + oz) for x,y,z in unit_cell for ox,oy,oz in internal_offsets]
