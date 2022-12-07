@@ -32,8 +32,8 @@ def addSurface(renderer, verts, faces, red, green, blue):
     renderer.AddActor(surfaceActor)
 
 
-def main():
-    # setup a VTK scene
+def makeVTKScene(width, height, red, green, blue):
+    """Creates a VTK window to render into."""
     ren = vtk.vtkRenderer()
     renWin = vtk.vtkRenderWindow()
     renWin.AddRenderer(ren)
@@ -41,19 +41,28 @@ def main():
     iren.SetRenderWindow(renWin)
     track = vtk.vtkInteractorStyleTrackballCamera()
     iren.SetInteractorStyle(track)
-    ren.SetBackground(0.95, 0.9, 0.85)
-    renWin.SetSize(800, 600)
+    ren.SetBackground(red, green, blue)
+    renWin.SetSize(width, height)
+    return ren, iren
+
+
+def main():
+    ren, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
 
     # make a list of 3D points
+    #unit_cell = [(0, 0, 0)] # cubic lattice
+    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC
+    unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC
     nx, ny, nz = (5, 4, 3)
-    pts = list(itertools.product(range(nx), range(ny), range(nz)))
-    pts2 = [(x + 0.5, y + 0.5, z + 0.5) for x,y,z in pts] # extend cubic lattice to BCC
-    pts.extend(pts2)
+    offsets = list(itertools.product(range(nx), range(ny), range(nz)))
+    pts = [(x + ox, y + oy, z + oz) for x,y,z in unit_cell for ox,oy,oz in offsets]
 
     # make a Voronoi structure from them
+    print("Finding Voronoi...")
     v = scipy.spatial.Voronoi(pts)
 
     # add the finite cells to the scene
+    print("Rendering...")
     for reg_num in v.point_region:
         indices = v.regions[reg_num]
         if -1 in indices: # external region including point at infinity
