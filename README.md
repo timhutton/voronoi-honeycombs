@@ -8,7 +8,7 @@ python parquet.py
 
 ## What does it do? ##
 
-The script renders space-filling polyhedra using Voronoi cells. See inside the script for more options.
+The script renders space-filling polyhedra using Voronoi cells. To animate the transitions between different patterns we move the points and run Voronoi on every frame. See inside the script for more options.
 
 ### Examples: ###
 
