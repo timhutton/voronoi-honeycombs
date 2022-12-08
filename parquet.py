@@ -105,6 +105,20 @@ def getInterpolatedFCCUnitCell(u):
     return [p0, p1, p2, p3], (x_size, y_size, z_size)
 
 
+def getInterpolatedWeairePhelanUnitCell(u):
+    """Returns a list of points for the specified unit cell, plus its xyz size."""
+    # u=0: cubic, u=1: Weaire-Phelan approximation
+    pts = [ (0, 0, 0), # corner of the cube (doesn't change)
+            (lerp(0, 0.25, u), 0.5, 0),
+            (lerp(0.5, 0.75, u), 0.5, 0),
+            (0.5, 0, lerp(0, 0.25, u)),
+            (0, lerp(0, 0.25, u), 0.5),
+            (0, lerp(0.5, 0.75, u), 0.5),
+            (0.5, 0.5, 0.5), # center of the cube (doesn't change)
+            (0.5, 0, lerp(0.5, 0.75, u)) ]
+    return pts, (1, 1, 1)
+
+
 def main():
     ren, renWin, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
 
@@ -124,7 +138,8 @@ def main():
         #             (0,0.75,0.5), (0.75,0.5,0), (0.5,0, 0.75)] # approximation of Weaire–Phelan
         #size = (1, 1, 1)
         #unit_cell, size = getInterpolatedBCCUnitCell(u)
-        unit_cell, size = getInterpolatedFCCUnitCell(u)
+        #unit_cell, size = getInterpolatedFCCUnitCell(u)
+        unit_cell, size = getInterpolatedWeairePhelanUnitCell(u)
         nx, ny, nz = (2, 2, 3)
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
