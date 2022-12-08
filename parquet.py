@@ -92,6 +92,19 @@ def getInterpolatedBCCUnitCell(u):
     return [p0, p1], (x_size, y_size, z_size)
 
 
+def getInterpolatedFCCUnitCell(u):
+    """Returns a list of points for the specified unit cell, plus its xyz size."""
+    # u=0: cubic, u=1: FCC
+    p0 = (0, 0, 0) # corner of the cube (doesn't change)
+    p1 = (0.5, 0.5, 0) # XY face (doesn't change)
+    p2 = (0.5, 0, lerp(0, 0.5, u)) # XZ face
+    p3 = (0, 0.5, lerp(0, 0.5, u)) # YZ face
+    x_size = 1
+    y_size = 1
+    z_size = lerp(0.5, 1, u)
+    return [p0, p1, p2, p3], (x_size, y_size, z_size)
+
+
 def main():
     ren, renWin, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
 
@@ -110,8 +123,9 @@ def main():
         #unit_cell = [(0,0,0), (0.5,0.5,0.5), (0,0.25,0.5), (0.25,0.5,0), (0.5,0,0.25),
         #             (0,0.75,0.5), (0.75,0.5,0), (0.5,0, 0.75)] # approximation of Weaire–Phelan
         #size = (1, 1, 1)
-        unit_cell, size = getInterpolatedBCCUnitCell(u)
-        nx, ny, nz = (4, 3, 2)
+        #unit_cell, size = getInterpolatedBCCUnitCell(u)
+        unit_cell, size = getInterpolatedFCCUnitCell(u)
+        nx, ny, nz = (2, 2, 3)
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
         internal_pts = [genpt(p, offset) for p in unit_cell for offset in internal_offsets]
