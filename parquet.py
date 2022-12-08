@@ -31,7 +31,7 @@ def makeVTKScene(width, height, red, green, blue):
     iren.SetInteractorStyle(track)
     ren.SetBackground(red, green, blue)
     renWin.SetSize(width, height)
-    return ren, iren
+    return ren, renWin, iren
 
 
 def makePolyData(verts, faces):
@@ -93,59 +93,72 @@ def getInterpolatedBCCUnitCell(u):
 
 
 def main():
-    ren, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
+    ren, renWin, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
 
-    # make a list of 3D points
-    #unit_cell = [(0, 0, 0)] # cubic lattice => cubes
-    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC => truncated octahedra
-    #unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC => rhombic dodecahedra
-    #unit_cell = [(0,0,0), (0,0.5,0.5), (0.5,0,0.5), (0.5,0.5,0),
-    #             (0.75,0.75,0.75), (0.75,0.25,0.25), (0.25,0.75,0.25), (0.25,0.25,0.75)] # diamond cubic => triakis truncated tetrahedra
-    unit_cell = [(0,0,0), (0.5,0.5,0.5), (0,0.25,0.5), (0.25,0.5,0), (0.5,0,0.25),
-                 (0,0.75,0.5), (0.75,0.5,0), (0.5,0, 0.75)] # approximation of Weaire–Phelan
-    size = (1, 1, 1)
-    #unit_cell, size = getInterpolatedBCCUnitCell(1)
-    nx, ny, nz = (4, 3, 2)
-    genpt = lambda p, po: (p[0] + po[0]*size[0], p[1] + po[1]*size[1], p[2] + po[2]*size[2])
-    internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
-    internal_pts = [genpt(p, po) for p in unit_cell for po in internal_offsets]
-    all_offsets = list(itertools.product(range(-1, nx + 1), range(-1, ny + 1), range(-1, nz + 1)))
-    external_pts = [genpt(p, po) for p in unit_cell for po in all_offsets if not genpt(p, po) in internal_pts]
-    pts = internal_pts + external_pts
+    colors = [(random.random(), random.random(), random.random()) for i in range(10000)]
 
-    # make a Voronoi structure from them
-    print("Finding Voronoi...")
-    v = scipy.spatial.Voronoi(pts)
+    num_frames = 30
+    for iFrame in range(num_frames+1):
+        u = iFrame / num_frames
 
-    # add the finite cells to the scene
-    print("Rendering...")
-    for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
-        indices = v.regions[reg_num]
-        if -1 in indices: # external region including point at infinity
-            continue
-        verts = v.vertices[indices]
-        cell = scipy.spatial.ConvexHull(verts)
-        faces = cell.simplices
-        addSurface(ren, verts, faces, random.random(), random.random(), random.random(), opacity=1)
-        addSphere(ren, internal_pts[iVert], 0.05, random.random(), random.random(), random.random())
+        # make a list of 3D points
+        #unit_cell = [(0, 0, 0)] # cubic lattice => cubes
+        #unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC => truncated octahedra
+        #unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC => rhombic dodecahedra
+        #unit_cell = [(0,0,0), (0,0.5,0.5), (0.5,0,0.5), (0.5,0.5,0),
+        #             (0.75,0.75,0.75), (0.75,0.25,0.25), (0.25,0.75,0.25), (0.25,0.25,0.75)] # diamond cubic => triakis truncated tetrahedra
+        #unit_cell = [(0,0,0), (0.5,0.5,0.5), (0,0.25,0.5), (0.25,0.5,0), (0.5,0,0.25),
+        #             (0,0.75,0.5), (0.75,0.5,0), (0.5,0, 0.75)] # approximation of Weaire–Phelan
+        #size = (1, 1, 1)
+        unit_cell, size = getInterpolatedBCCUnitCell(u)
+        nx, ny, nz = (4, 3, 2)
+        genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
+        internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
+        internal_pts = [genpt(p, offset) for p in unit_cell for offset in internal_offsets]
+        all_offsets = list(itertools.product(range(-1, nx + 1), range(-1, ny + 1), range(-1, nz + 1)))
+        external_pts = [genpt(p, offset) for p in unit_cell for offset in all_offsets if not genpt(p, offset) in internal_pts]
+        pts = internal_pts + external_pts
 
-    if False:
-        # add the unit cube
-        cube = vtk.vtkCubeSource()
-        cube.SetCenter(0.5, 0.5, 0.5)
-        mapper = vtk.vtkPolyDataMapper()
-        mapper.SetInputConnection(cube.GetOutputPort())
-        actor = vtk.vtkActor()
-        actor.SetMapper(mapper)
-        actor.GetProperty().SetColor(0, 0, 0)
-        actor.GetProperty().SetRepresentationToWireframe()
-        ren.AddActor(actor)
+        # make a Voronoi structure from them
+        print("Finding Voronoi...")
+        v = scipy.spatial.Voronoi(pts)
 
-    # render the scene and start the interaction loop
-    ren.GetActiveCamera().SetPosition(-7.5, 10.5, 20.5)
-    ren.ResetCamera()
-    iren.Start()
+        # add the finite cells to the scene
+        print("Rendering...")
+        for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
+            indices = v.regions[reg_num]
+            if -1 in indices: # external region including point at infinity
+                continue
+            verts = v.vertices[indices]
+            cell = scipy.spatial.ConvexHull(verts)
+            faces = cell.simplices
+            addSurface(ren, verts, faces, *colors[iVert], opacity=1)
+            addSphere(ren, internal_pts[iVert], 0.05, *colors[iVert])
 
+        if False:
+            # add the unit cube
+            cube = vtk.vtkCubeSource()
+            cube.SetCenter(0.5, 0.5, 0.5)
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputConnection(cube.GetOutputPort())
+            actor = vtk.vtkActor()
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetColor(0, 0, 0)
+            actor.GetProperty().SetRepresentationToWireframe()
+            ren.AddActor(actor)
+
+        if iFrame == 0:
+            # allow the camera view to be changed - press 'q' to start the animation
+            ren.GetActiveCamera().SetPosition(-7.5, 10.5, 20.5)
+            ren.ResetCamera()
+            iren.Start()
+        elif iFrame < num_frames:
+            renWin.Render()
+            ren.RemoveAllViewProps()
+        else:
+            renWin.Render()
+
+    iren.Start() # press 'q' again to exit
 
 if __name__ == "__main__":
     main()
