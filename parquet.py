@@ -59,6 +59,7 @@ def addSurface(renderer, verts, faces, red, green, blue, opacity=1):
     actor.SetMapper(mapper)
     actor.GetProperty().SetColor(red, green, blue)
     actor.GetProperty().SetOpacity(opacity)
+    #actor.GetProperty().SetRepresentationToWireframe()
     renderer.AddActor(actor)
 
 
@@ -75,6 +76,22 @@ def addSphere(renderer, pos, radius, red, green, blue):
     renderer.AddActor(actor)
 
 
+def lerp(a, b, u):
+    """Linear interpolation between a (at u=0) and b (at u=1)."""
+    return a + (b - a) * u
+
+
+def getInterpolatedBCCUnitCell(u):
+    """Returns a list of points for the specified unit cell, plus its xyz size."""
+    # u=0: cubic, u=1: BCC
+    p0 = (0, 0, 0) # corner of the cube (doesn't change)
+    p1 = (lerp(0, 0.5, u), lerp(0, 0.5, u), lerp(1, 0.5, u)) # 0,0,1 corner or center of cube
+    x_size = 1
+    y_size = 1
+    z_size = lerp(2, 1, u)
+    return [p0, p1], (x_size, y_size, z_size)
+
+
 def main():
     ren, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
 
@@ -86,11 +103,14 @@ def main():
     #             (0.75,0.75,0.75), (0.75,0.25,0.25), (0.25,0.75,0.25), (0.25,0.25,0.75)] # diamond cubic => triakis truncated tetrahedra
     unit_cell = [(0,0,0), (0.5,0.5,0.5), (0,0.25,0.5), (0.25,0.5,0), (0.5,0,0.25),
                  (0,0.75,0.5), (0.75,0.5,0), (0.5,0, 0.75)] # approximation of Weaire–Phelan
+    size = (1, 1, 1)
+    #unit_cell, size = getInterpolatedBCCUnitCell(1)
     nx, ny, nz = (4, 3, 2)
+    genpt = lambda p, po: (p[0] + po[0]*size[0], p[1] + po[1]*size[1], p[2] + po[2]*size[2])
     internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
-    internal_pts = [(x + ox, y + oy, z + oz) for x,y,z in unit_cell for ox,oy,oz in internal_offsets]
+    internal_pts = [genpt(p, po) for p in unit_cell for po in internal_offsets]
     all_offsets = list(itertools.product(range(-1, nx + 1), range(-1, ny + 1), range(-1, nz + 1)))
-    external_pts = [(x + ox, y + oy, z + oz) for x,y,z in unit_cell for ox,oy,oz in all_offsets if not (x + ox, y + oy, z + oz) in internal_pts]
+    external_pts = [genpt(p, po) for p in unit_cell for po in all_offsets if not genpt(p, po) in internal_pts]
     pts = internal_pts + external_pts
 
     # make a Voronoi structure from them
@@ -107,7 +127,7 @@ def main():
         cell = scipy.spatial.ConvexHull(verts)
         faces = cell.simplices
         addSurface(ren, verts, faces, random.random(), random.random(), random.random(), opacity=1)
-        #addSphere(ren, internal_pts[iVert], 0.05, random.random(), random.random(), random.random())
+        addSphere(ren, internal_pts[iVert], 0.05, random.random(), random.random(), random.random())
 
     if False:
         # add the unit cube
@@ -122,7 +142,7 @@ def main():
         ren.AddActor(actor)
 
     # render the scene and start the interaction loop
-    ren.GetActiveCamera().SetPosition(0.5, 10.5, 20.5)
+    ren.GetActiveCamera().SetPosition(-7.5, 10.5, 20.5)
     ren.ResetCamera()
     iren.Start()
 
