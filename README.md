@@ -10,6 +10,8 @@ python parquet.py
 
 The script renders space-filling polyhedra using Voronoi cells. To animate the transitions between different patterns we move the points and run Voronoi on every frame. See inside the script for more options.
 
+Discussion thread: https://mathstodon.xyz/@timhutton/109469821382910347
+
 ### Examples: ###
 
 The Voronoi approximation of the [Weaire-Phelan structure](https://en.wikipedia.org/wiki/Weaire%E2%80%93Phelan_structure):
