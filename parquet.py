@@ -106,8 +106,20 @@ def main():
         verts = v.vertices[indices]
         cell = scipy.spatial.ConvexHull(verts)
         faces = cell.simplices
-        addSurface(ren, verts, faces, random.random(), random.random(), random.random())
-        #addSphere(ren, internal_pts[iVert], 0.2, random.random(), random.random(), random.random())
+        addSurface(ren, verts, faces, random.random(), random.random(), random.random(), opacity=1)
+        #addSphere(ren, internal_pts[iVert], 0.05, random.random(), random.random(), random.random())
+
+    if False:
+        # add the unit cube
+        cube = vtk.vtkCubeSource()
+        cube.SetCenter(0.5, 0.5, 0.5)
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputConnection(cube.GetOutputPort())
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(0, 0, 0)
+        actor.GetProperty().SetRepresentationToWireframe()
+        ren.AddActor(actor)
 
     # render the scene and start the interaction loop
     ren.GetActiveCamera().SetPosition(0.5, 10.5, 20.5)
