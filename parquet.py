@@ -81,6 +81,11 @@ def lerp(a, b, u):
     return a + (b - a) * u
 
 
+def lerp3(a, b, u):
+    """Linear interpolation between a (at u=0) and b (at u=1)."""
+    return [lerp(a[i], b[i], u) for i in range(3)]
+
+
 def getInterpolatedBCCUnitCell(u):
     """Returns a list of points for the specified unit cell, plus its xyz size."""
     # u=0: cubic, u=1: BCC
@@ -105,6 +110,20 @@ def getInterpolatedFCCUnitCell(u):
     return [p0, p1, p2, p3], (x_size, y_size, z_size)
 
 
+def getInterpolatedDiamondCubicUnitCell(u):
+    """Returns a list of points for the specified unit cell, plus its xyz size."""
+    # u=0: cubic, u=1: diamond cubic
+    pts = [ (0, 0, 0), # corner of the cube (doesn't change)
+            lerp3((0, 0.5, 0), (0.25, 0.75, 0.25), u),
+            (0.5, 0.5, 0),
+            lerp3((0.5, 0, 0), (0.75, 0.25, 0.25), u),
+            lerp3((0, 0, 0.5), (0.25, 0.25, 0.75), u),
+            (0, 0.5, 0.5),
+            lerp3((0.5, 0.5, 0.5), (0.75, 0.75, 0.75), u),
+            (0.5, 0, 0.5)]
+    return pts, (1, 1, 1)
+
+
 def getInterpolatedWeairePhelanUnitCell(u):
     """Returns a list of points for the specified unit cell, plus its xyz size."""
     # u=0: cubic, u=1: Weaire-Phelan approximation
@@ -124,9 +143,13 @@ def main():
 
     colors = [(random.random(), random.random(), random.random()) for i in range(10000)]
 
-    num_frames = 30
-    for iFrame in range(num_frames+1):
-        u = iFrame / num_frames
+    # define the sequence
+    num_frames = 60
+    u_values = [iFrame / num_frames for iFrame in range(num_frames + 1)]
+    u_values.extend((num_frames - iFrame) / num_frames for iFrame in range(num_frames + 1))
+    pauses = [num_frames]
+
+    for iFrame, u in enumerate(u_values):
 
         # make a list of 3D points
         #unit_cell = [(0, 0, 0)] # cubic lattice => cubes
@@ -139,8 +162,9 @@ def main():
         #size = (1, 1, 1)
         #unit_cell, size = getInterpolatedBCCUnitCell(u)
         #unit_cell, size = getInterpolatedFCCUnitCell(u)
-        unit_cell, size = getInterpolatedWeairePhelanUnitCell(u)
-        nx, ny, nz = (2, 2, 3)
+        unit_cell, size = getInterpolatedDiamondCubicUnitCell(u)
+        #unit_cell, size = getInterpolatedWeairePhelanUnitCell(u)
+        nx, ny, nz = (2, 2, 2)
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
         internal_pts = [genpt(p, offset) for p in unit_cell for offset in internal_offsets]
@@ -149,11 +173,9 @@ def main():
         pts = internal_pts + external_pts
 
         # make a Voronoi structure from them
-        print("Finding Voronoi...")
         v = scipy.spatial.Voronoi(pts)
 
         # add the finite cells to the scene
-        print("Rendering...")
         for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
             indices = v.regions[reg_num]
             if -1 in indices: # external region including point at infinity
@@ -162,7 +184,7 @@ def main():
             cell = scipy.spatial.ConvexHull(verts)
             faces = cell.simplices
             addSurface(ren, verts, faces, *colors[iVert], opacity=1)
-            addSphere(ren, internal_pts[iVert], 0.05, *colors[iVert])
+            #addSphere(ren, internal_pts[iVert], 0.05, *colors[iVert])
 
         if False:
             # add the unit cube
@@ -177,17 +199,23 @@ def main():
             ren.AddActor(actor)
 
         if iFrame == 0:
-            # allow the camera view to be changed - press 'q' to start the animation
+            renWin.SetWindowName("Press 'q' to start the animation")
             ren.GetActiveCamera().SetPosition(-7.5, 10.5, 20.5)
             ren.ResetCamera()
             iren.Start()
-        elif iFrame < num_frames:
+            renWin.SetWindowName("Animating...")
+        elif iFrame in pauses:
+            renWin.SetWindowName("Press 'q' again to continue")
+            iren.Start()
+            renWin.SetWindowName("Animating...")
+        elif iFrame == len(u_values) - 1:
             renWin.Render()
-            ren.RemoveAllViewProps()
+            renWin.SetWindowName("Press 'q' again to exit")
+            iren.Start() # press 'q' again to exit
         else:
             renWin.Render()
+            ren.RemoveAllViewProps()
 
-    iren.Start() # press 'q' again to exit
 
 if __name__ == "__main__":
     main()
