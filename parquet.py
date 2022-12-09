@@ -1,4 +1,4 @@
-"""     Renders a Voronoi diagram from a list of points - https://github.com/timhutton/voronoi-honeycombs
+"""     Making space-filling polyhedra using Voronoi cells - https://github.com/timhutton/voronoi-honeycombs
         Copyright (C) 2022 Tim Hutton
 
         This program is free software: you can redistribute it and/or modify
@@ -57,7 +57,7 @@ def makePolyData(verts, faces):
 
 
 def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
-    """Add the specified surface to the renderer scene with the specified color."""
+    """Add the specified surface to the renderer scene."""
     surface = makePolyData(verts, faces)
     mapper = vtk.vtkPolyDataMapper()
     mapper.SetInputData(surface)
@@ -71,7 +71,7 @@ def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
 
 
 def addSphere(renderer, pos, radius, color):
-    """Add a sphere to the renderer scene with the specified color."""
+    """Add a sphere to the renderer scene."""
     sphere = vtk.vtkSphereSource()
     sphere.SetRadius(radius)
     mapper = vtk.vtkPolyDataMapper()
@@ -80,6 +80,19 @@ def addSphere(renderer, pos, radius, color):
     actor.SetMapper(mapper)
     actor.SetPosition(*pos)
     actor.GetProperty().SetColor(*color)
+    renderer.AddActor(actor)
+
+
+def addLabel(pos, text, renderer):
+    """Add a text label to the renderer scene."""
+    vector_text = vtk.vtkVectorText()
+    vector_text.SetText(text);
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(vector_text.GetOutputPort())
+    actor = vtk.vtkFollower()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetColor(0, 0, 0)
+    actor.SetPosition(*pos)
     renderer.AddActor(actor)
 
 
@@ -101,17 +114,23 @@ def temporallyConsistentRandomColor(i):
     return random.random(), random.random(), random.random()
 
 
-def getUnitCells():
-    """ Returns a family of unit cells each with 8 cell centers that we can interpolate between
+def getUnitCell(label):
+    """ Returns one of a family of unit cells each with 8 cell centers that we can interpolate between.
            unit_cell : List of 3D points expressed in some convenient scale
            scale     : Factor to divide by to obtain the points we want
            size      : Dimensions of the resulting unit cell after dividing points by scale
     """
-    return { "cubic": { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
-             "bcc": { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "BCC" },
-             "fcc": { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "FCC" },
-             "diamondCubic": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond cubic" },
-             "weairePhelan": { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "Weaire-Phelan approximation" } }
+    unit_cells = { "cubic":        { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)],
+                                     "scale": 1, "size": [2,2,2], "name": "Cubic" },
+                   "bcc":          { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)],
+                                     "scale": 2, "size": [2,2,1], "name": "BCC" },
+                   "fcc":          { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)],
+                                     "scale": 1, "size": [2,2,4], "name": "FCC" },
+                   "diamondCubic": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)],
+                                     "scale": 2, "size": [2,2,2], "name": "Diamond cubic" },
+                   "weairePhelan": { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)],
+                                     "scale": 2, "size": [2,2,2], "name": "Weaire-Phelan approximation" } }
+    return unit_cells[label]
 
 
 def animateTransitions():
@@ -126,22 +145,20 @@ def animateTransitions():
     u_values = [iFrame / num_frames for iFrame in range(num_frames + 1)]
     u_values.extend(u_values[::-1])
     pauses = [num_frames]
-    unit_cells = getUnitCells()
 
     for iFrame, u in enumerate(u_values):
 
         # Make a list of 3D points
-        unit_cell, size = lerpUnitCell(unit_cells["cubic"], unit_cells["diamondCubic"], u)
-        nx, ny, nz = (2, 2, 2)
+        unit_cell, size = lerpUnitCell(getUnitCell("cubic"), getUnitCell("diamondCubic"), u)
+        nx, ny, nz = 2, 2, 2
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
         internal_pts = [genpt(p, offset) for p in unit_cell for offset in internal_offsets]
         all_offsets = list(itertools.product(range(-1, nx + 1), range(-1, ny + 1), range(-1, nz + 1)))
         external_pts = [genpt(p, offset) for p in unit_cell for offset in all_offsets if not genpt(p, offset) in internal_pts]
-        pts = internal_pts + external_pts
 
         # Compute a Voronoi structure from the list of 3D points
-        v = scipy.spatial.Voronoi(pts)
+        v = scipy.spatial.Voronoi(internal_pts + external_pts)
 
         # Add the Voronoi cells to the scene
         for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
@@ -179,6 +196,17 @@ def animateTransitions():
             ren.RemoveAllViewProps()
 
 
+def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts):
+    """Add points to internal_pts/external_pts for each unit cell in the X-Y range specified."""
+    for ix,iy in itertools.product(range(-1, nx + 1), range(-1, ny + 1)):
+        offset_unit_cell_pts = [(pos[0] + size[0]*ix + unit_cell_pt[0], pos[1] + size[1]*iy + unit_cell_pt[1], pos[2] + unit_cell_pt[2]) for unit_cell_pt in unit_cell_pts]
+        if ix >= 0 and ix < nx and iy >= 0 and iy < ny:
+            internal_pts.extend(offset_unit_cell_pts)
+        else:
+            external_pts.extend(offset_unit_cell_pts)
+    pos[2] += size[2]
+
+
 def makeParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
@@ -186,13 +214,64 @@ def makeParquetDeformation():
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
 
-    # TODO
+    nx, ny, nz = 2, 1, 10  # per transition
+    sequence = ["cubic", "bcc", "fcc", "diamondCubic", "weairePhelan"]
 
+    # Collect points by stacking unit cells along the z-axis
+    internal_pts = [] # ones we will display the Voronoi cell for
+    external_pts = [] # ones with possible boundary effects that we need to compute Voronoi but don't display
+    pos = [0, 0, 0]
+    transition_pairs = list(zip(sequence, sequence[1:]))
+    for iTransition,(type1,type2) in enumerate(transition_pairs):
+        cell1 = getUnitCell(type1)
+        cell2 = getUnitCell(type2)
+        if iTransition == 0:
+            # add an initial hidden slice to avoid boundary effects
+            unit_cell_pts, size = lerpUnitCell(cell1, cell2, 0)
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
+        for iz in range(nz):
+            u = iz / nz  # (excludes final value)
+            unit_cell_pts, size = lerpUnitCell(cell1, cell2, u)
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
+            if iz == 0:
+                addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell1["name"], ren)
+        if iTransition == len(transition_pairs) - 1:
+            unit_cell_pts, size = lerpUnitCell(cell1, cell2, 1)
+            # add a final slice to complete the transition
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
+            addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell2["name"], ren)
+            # add a final hidden slice to avoid boundary effects
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
+
+    # Run Voronoi over all the points
+    print()
+    print("Computing Voronoi structure for the parquet...")
+    v = scipy.spatial.Voronoi(internal_pts + external_pts)
+
+    # Add the cells to the scene
+    print("Adding the Voronoi cells to the screen...")
+    for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
+        indices = v.regions[reg_num]
+        if -1 in indices: # external region including point at infinity
+            continue
+        verts = v.vertices[indices]
+        faces = scipy.spatial.ConvexHull(verts).simplices
+        addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False)
+
+    # TODO: animate the camera along the parquet
+
+    # Let the user interact with the scene
+    print("Controls:")
+    print("  mouse left drag: rotate the scene")
+    print("  mouse right drag up/down, or mouse wheel: zoom in/out")
+    print("  shift + mouse left drag: pan")
+    print("\nPress 'q' to exit")
+    ren.GetActiveCamera().SetPosition(-7.5, 5.5, pos[2]+10)
+    ren.ResetCamera()
     iren.Start()
 
 
 if __name__ == "__main__":
 
     animateTransitions()
-
-    #makeParquetDeformation()
+    makeParquetDeformation()
