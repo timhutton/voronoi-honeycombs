@@ -68,6 +68,7 @@ def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
     if wireframe:
         actor.GetProperty().SetRepresentationToWireframe()
     renderer.AddActor(actor)
+    return actor
 
 
 def addSphere(renderer, pos, radius, color):
@@ -83,7 +84,7 @@ def addSphere(renderer, pos, radius, color):
     renderer.AddActor(actor)
 
 
-def addLabel(pos, text, renderer):
+def addLabel(pos, text, renderer, color, scale):
     """Add a text label to the renderer scene."""
     vector_text = vtk.vtkVectorText()
     vector_text.SetText(text);
@@ -91,7 +92,8 @@ def addLabel(pos, text, renderer):
     mapper.SetInputConnection(vector_text.GetOutputPort())
     actor = vtk.vtkFollower()
     actor.SetMapper(mapper)
-    actor.GetProperty().SetColor(0, 0, 0)
+    actor.GetProperty().SetColor(*color)
+    actor.SetScale(scale)
     actor.SetPosition(*pos)
     renderer.AddActor(actor)
 
@@ -207,14 +209,22 @@ def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts
     pos[2] += size[2]
 
 
+def chunks(lst: list, n: int):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
 def makeParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
     window_size = 800, 600
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
+    label_color = 0, 0, 0
+    label_scale = 0.5
 
-    nx, ny, nz = 2, 1, 10  # per transition
+    nx, ny, nz = 3, 2, 20  # per transition
     sequence = ["cubic", "bcc", "fcc", "diamondCubic", "weairePhelan"]
 
     # Collect points by stacking unit cells along the z-axis
@@ -234,12 +244,12 @@ def makeParquetDeformation():
             unit_cell_pts, size = lerpUnitCell(cell1, cell2, u)
             addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
             if iz == 0:
-                addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell1["name"], ren)
+                addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell1["name"], ren, label_color, label_scale)
         if iTransition == len(transition_pairs) - 1:
             unit_cell_pts, size = lerpUnitCell(cell1, cell2, 1)
             # add a final slice to complete the transition
             addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
-            addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell2["name"], ren)
+            addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell2["name"], ren, label_color, label_scale)
             # add a final hidden slice to avoid boundary effects
             addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
 
@@ -249,16 +259,31 @@ def makeParquetDeformation():
     v = scipy.spatial.Voronoi(internal_pts + external_pts)
 
     # Add the cells to the scene
-    print("Adding the Voronoi cells to the screen...")
+    print("Adding the Voronoi cells to the scene...")
+    actors = []
     for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
         indices = v.regions[reg_num]
         if -1 in indices: # external region including point at infinity
             continue
         verts = v.vertices[indices]
         faces = scipy.spatial.ConvexHull(verts).simplices
-        addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False)
+        actors.append(addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False))
 
-    # TODO: animate the camera along the parquet
+    # Animate the camera along the parquet
+    print("Animating...")
+    num_frames = 2500
+    for iFrame in range(num_frames):
+        z = iFrame * (pos[2] + 30) / num_frames
+        ren.GetActiveCamera().SetPosition(4, 15, 20 + z)
+        ren.GetActiveCamera().SetFocalPoint(4, 5, 0 + z)
+        for actors_slice in chunks(actors, nx*ny*4):
+            bounds = actors_slice[0].GetBounds()
+            for actor in actors_slice:
+                if bounds[5] < z and bounds[4] > z - 50:
+                    actor.VisibilityOn()
+                else:
+                    actor.VisibilityOff()
+        renWin.Render()
 
     # Let the user interact with the scene
     print("Controls:")
@@ -266,8 +291,6 @@ def makeParquetDeformation():
     print("  mouse right drag up/down, or mouse wheel: zoom in/out")
     print("  shift + mouse left drag: pan")
     print("\nPress 'q' to exit")
-    ren.GetActiveCamera().SetPosition(-7.5, 5.5, pos[2]+10)
-    ren.ResetCamera()
     iren.Start()
 
 
