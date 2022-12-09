@@ -14,23 +14,29 @@
         You should have received a copy of the GNU General Public License
         along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
+print("Loading libraries...")
+
+import functools
 import itertools
 import random
+
 import scipy
 import vtk
 
 
-def makeVTKScene(width, height, red, green, blue):
+def makeVTKScene(window_size, background_color):
     """Creates a VTK window to render into."""
     ren = vtk.vtkRenderer()
     renWin = vtk.vtkRenderWindow()
     renWin.AddRenderer(ren)
+    renWin.SetWindowName("Voronoi Honeycombs")
     iren = vtk.vtkRenderWindowInteractor()
     iren.SetRenderWindow(renWin)
     track = vtk.vtkInteractorStyleTrackballCamera()
     iren.SetInteractorStyle(track)
-    ren.SetBackground(red, green, blue)
-    renWin.SetSize(width, height)
+    ren.SetBackground(*background_color)
+    renWin.SetSize(*window_size)
     return ren, renWin, iren
 
 
@@ -39,31 +45,32 @@ def makePolyData(verts, faces):
     pd = vtk.vtkPolyData()
     pts = vtk.vtkPoints()
     for pt in verts:
-        pts.InsertNextPoint( pt[0], pt[1], pt[2] )
+        pts.InsertNextPoint(*pt)
     cells = vtk.vtkCellArray()
     for f in faces:
-        cells.InsertNextCell( len(f) )
+        cells.InsertNextCell(len(f))
         for v in f:
-            cells.InsertCellPoint( v )
+            cells.InsertCellPoint(v)
     pd.SetPoints(pts)
     pd.SetPolys(cells)
     return pd
 
 
-def addSurface(renderer, verts, faces, red, green, blue, opacity=1):
+def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
     """Add the specified surface to the renderer scene with the specified color."""
     surface = makePolyData(verts, faces)
     mapper = vtk.vtkPolyDataMapper()
     mapper.SetInputData(surface)
     actor = vtk.vtkActor()
     actor.SetMapper(mapper)
-    actor.GetProperty().SetColor(red, green, blue)
+    actor.GetProperty().SetColor(*color)
     actor.GetProperty().SetOpacity(opacity)
-    #actor.GetProperty().SetRepresentationToWireframe()
+    if wireframe:
+        actor.GetProperty().SetRepresentationToWireframe()
     renderer.AddActor(actor)
 
 
-def addSphere(renderer, pos, radius, red, green, blue):
+def addSphere(renderer, pos, radius, color):
     """Add a sphere to the renderer scene with the specified color."""
     sphere = vtk.vtkSphereSource()
     sphere.SetRadius(radius)
@@ -71,99 +78,57 @@ def addSphere(renderer, pos, radius, red, green, blue):
     mapper.SetInputConnection(sphere.GetOutputPort())
     actor = vtk.vtkActor()
     actor.SetMapper(mapper)
-    actor.SetPosition(pos[0], pos[1], pos[2])
-    actor.GetProperty().SetColor(red, green, blue)
+    actor.SetPosition(*pos)
+    actor.GetProperty().SetColor(*color)
     renderer.AddActor(actor)
 
 
-def lerp(a, b, u):
-    """Linear interpolation between a (at u=0) and b (at u=1)."""
-    return a + (b - a) * u
+def lerp(a_vals, b_vals, u):
+    """Linear interpolation between a_vals at u=0 and b_vals at u=1."""
+    return [a + (b - a) * u for a,b in zip(a_vals, b_vals)]
 
 
-def lerp3(a, b, u):
-    """Linear interpolation between a (at u=0) and b (at u=1)."""
-    return [lerp(a[i], b[i], u) for i in range(3)]
+def lerpUnitCell(a, b, u):
+    """Interpolates two unit cells, returning 3D points and dimensions of the resulting unit cell."""
+    a_pts = [[x / a["scale"] for x in pt] for pt in a["unit_cell"]]
+    b_pts = [[x / b["scale"] for x in pt] for pt in b["unit_cell"]]
+    return [lerp(pa, pb, u) for pa,pb in zip(a_pts, b_pts)], lerp(a["size"], b["size"], u)
 
 
-def getInterpolatedBCCUnitCell(u):
-    """Returns a list of points for the specified unit cell, plus its xyz size."""
-    # u=0: cubic, u=1: BCC
-    p0 = (0, 0, 0) # corner of the cube (doesn't change)
-    p1 = (lerp(0, 0.5, u), lerp(0, 0.5, u), lerp(1, 0.5, u)) # 0,0,1 corner or center of cube
-    x_size = 1
-    y_size = 1
-    z_size = lerp(2, 1, u)
-    return [p0, p1], (x_size, y_size, z_size)
+@functools.lru_cache
+def temporallyConsistentRandomColor(i):
+    """Return a random RGB [0,1] color, and remember previously answers."""
+    return random.random(), random.random(), random.random()
 
 
-def getInterpolatedFCCUnitCell(u):
-    """Returns a list of points for the specified unit cell, plus its xyz size."""
-    # u=0: cubic, u=1: FCC
-    p0 = (0, 0, 0) # corner of the cube (doesn't change)
-    p1 = (0.5, 0.5, 0) # XY face (doesn't change)
-    p2 = (0.5, 0, lerp(0, 0.5, u)) # XZ face
-    p3 = (0, 0.5, lerp(0, 0.5, u)) # YZ face
-    x_size = 1
-    y_size = 1
-    z_size = lerp(0.5, 1, u)
-    return [p0, p1, p2, p3], (x_size, y_size, z_size)
-
-
-def getInterpolatedDiamondCubicUnitCell(u):
-    """Returns a list of points for the specified unit cell, plus its xyz size."""
-    # u=0: cubic, u=1: diamond cubic
-    pts = [ (0, 0, 0), # corner of the cube (doesn't change)
-            lerp3((0, 0.5, 0), (0.25, 0.75, 0.25), u),
-            (0.5, 0.5, 0),
-            lerp3((0.5, 0, 0), (0.75, 0.25, 0.25), u),
-            lerp3((0, 0, 0.5), (0.25, 0.25, 0.75), u),
-            (0, 0.5, 0.5),
-            lerp3((0.5, 0.5, 0.5), (0.75, 0.75, 0.75), u),
-            (0.5, 0, 0.5)]
-    return pts, (1, 1, 1)
-
-
-def getInterpolatedWeairePhelanUnitCell(u):
-    """Returns a list of points for the specified unit cell, plus its xyz size."""
-    # u=0: cubic, u=1: Weaire-Phelan approximation
-    pts = [ (0, 0, 0), # corner of the cube (doesn't change)
-            (lerp(0, 0.25, u), 0.5, 0),
-            (lerp(0.5, 0.75, u), 0.5, 0),
-            (0.5, 0, lerp(0, 0.25, u)),
-            (0, lerp(0, 0.25, u), 0.5),
-            (0, lerp(0.5, 0.75, u), 0.5),
-            (0.5, 0.5, 0.5), # center of the cube (doesn't change)
-            (0.5, 0, lerp(0.5, 0.75, u)) ]
-    return pts, (1, 1, 1)
-
+#TODO: code for parquet deformation
 
 def main():
-    ren, renWin, iren = makeVTKScene(800, 600, 0.95, 0.9, 0.85)
 
-    colors = [(random.random(), random.random(), random.random()) for i in range(10000)]
+    window_size = 800, 600
+    background_color = 0.95, 0.9, 0.85
+    ren, renWin, iren = makeVTKScene(window_size, background_color)
 
-    # define the sequence
-    num_frames = 60
+    # Define the animation sequence
+    num_frames = 30
     u_values = [iFrame / num_frames for iFrame in range(num_frames + 1)]
-    u_values.extend((num_frames - iFrame) / num_frames for iFrame in range(num_frames + 1))
+    u_values.extend(u_values[::-1])
     pauses = [num_frames]
+
+    # A family of unit cells each with 8 cell centers that we can interpolate between
+    #   unit_cell : List of 3D points expressed in some convenient scale.
+    #   scale     : Factor to divide by to obtain the points we want.
+    #   size      : Dimensions of the resulting unit cell after dividing points by scale.
+    cubic2x2x2   = { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2] }
+    bcc2x2x1     = { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1] }
+    fcc1x1x2     = { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4] }
+    diamondCubic = { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2] }
+    weairePhelan = { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2] }
 
     for iFrame, u in enumerate(u_values):
 
-        # make a list of 3D points
-        #unit_cell = [(0, 0, 0)] # cubic lattice => cubes
-        #unit_cell = [(0, 0, 0), (0.5, 0.5, 0.5)] # BCC => truncated octahedra
-        #unit_cell = [(0, 0, 0), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)] # FCC => rhombic dodecahedra
-        #unit_cell = [(0,0,0), (0,0.5,0.5), (0.5,0,0.5), (0.5,0.5,0),
-        #             (0.75,0.75,0.75), (0.75,0.25,0.25), (0.25,0.75,0.25), (0.25,0.25,0.75)] # diamond cubic => triakis truncated tetrahedra
-        #unit_cell = [(0,0,0), (0.5,0.5,0.5), (0,0.25,0.5), (0.25,0.5,0), (0.5,0,0.25),
-        #             (0,0.75,0.5), (0.75,0.5,0), (0.5,0, 0.75)] # approximation of Weaire–Phelan
-        #size = (1, 1, 1)
-        #unit_cell, size = getInterpolatedBCCUnitCell(u)
-        #unit_cell, size = getInterpolatedFCCUnitCell(u)
-        unit_cell, size = getInterpolatedDiamondCubicUnitCell(u)
-        #unit_cell, size = getInterpolatedWeairePhelanUnitCell(u)
+        # Make a list of 3D points
+        unit_cell, size = lerpUnitCell(cubic2x2x2, diamondCubic, u)
         nx, ny, nz = (2, 2, 2)
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
@@ -181,37 +146,29 @@ def main():
             if -1 in indices: # external region including point at infinity
                 continue
             verts = v.vertices[indices]
-            cell = scipy.spatial.ConvexHull(verts)
-            faces = cell.simplices
-            addSurface(ren, verts, faces, *colors[iVert], opacity=1)
-            #addSphere(ren, internal_pts[iVert], 0.05, *colors[iVert])
-
-        if False:
-            # add the unit cube
-            cube = vtk.vtkCubeSource()
-            cube.SetCenter(0.5, 0.5, 0.5)
-            mapper = vtk.vtkPolyDataMapper()
-            mapper.SetInputConnection(cube.GetOutputPort())
-            actor = vtk.vtkActor()
-            actor.SetMapper(mapper)
-            actor.GetProperty().SetColor(0, 0, 0)
-            actor.GetProperty().SetRepresentationToWireframe()
-            ren.AddActor(actor)
+            faces = scipy.spatial.ConvexHull(verts).simplices
+            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False)
+            #addSphere(ren, internal_pts[iVert], 0.05, temporallyConsistentRandomColor(iVert))
 
         if iFrame == 0:
-            renWin.SetWindowName("Press 'q' to start the animation")
-            ren.GetActiveCamera().SetPosition(-7.5, 10.5, 20.5)
+            print("Controls:")
+            print("  mouse left drag: rotate the scene")
+            print("  mouse right drag up/down, or mouse wheel: zoom in/out")
+            print("  shift + mouse left drag: pan")
+            print("\nPress 'q' to start the animation")
+            ren.GetActiveCamera().SetPosition(-7.5, 5.5, -20.5)
             ren.ResetCamera()
             iren.Start()
-            renWin.SetWindowName("Animating...")
+            print("Animating...")
         elif iFrame in pauses:
-            renWin.SetWindowName("Press 'q' again to continue")
+            print("Press 'q' to continue")
+            renWin.Render()
             iren.Start()
-            renWin.SetWindowName("Animating...")
+            print("Animating...")
         elif iFrame == len(u_values) - 1:
             renWin.Render()
-            renWin.SetWindowName("Press 'q' again to exit")
-            iren.Start() # press 'q' again to exit
+            print("Press 'q' to exit")
+            iren.Start()
         else:
             renWin.Render()
             ren.RemoveAllViewProps()
