@@ -25,12 +25,12 @@ import scipy
 import vtk
 
 
-def makeVTKScene(window_size, background_color):
+def makeVTKWindow(window_size, background_color, title):
     """Creates a VTK window to render into."""
     ren = vtk.vtkRenderer()
     renWin = vtk.vtkRenderWindow()
     renWin.AddRenderer(ren)
-    renWin.SetWindowName("Voronoi Honeycombs")
+    renWin.SetWindowName(title)
     iren = vtk.vtkRenderWindowInteractor()
     iren.SetRenderWindow(renWin)
     track = vtk.vtkInteractorStyleTrackballCamera()
@@ -107,7 +107,7 @@ def main():
 
     window_size = 800, 600
     background_color = 0.95, 0.9, 0.85
-    ren, renWin, iren = makeVTKScene(window_size, background_color)
+    ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
 
     # Define the animation sequence
     num_frames = 30
@@ -137,10 +137,10 @@ def main():
         external_pts = [genpt(p, offset) for p in unit_cell for offset in all_offsets if not genpt(p, offset) in internal_pts]
         pts = internal_pts + external_pts
 
-        # make a Voronoi structure from them
+        # Compute a Voronoi structure from the list of 3D points
         v = scipy.spatial.Voronoi(pts)
 
-        # add the finite cells to the scene
+        # Add the Voronoi cells to the scene
         for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
             indices = v.regions[reg_num]
             if -1 in indices: # external region including point at infinity
@@ -159,11 +159,13 @@ def main():
             ren.GetActiveCamera().SetPosition(-7.5, 5.5, -20.5)
             ren.ResetCamera()
             iren.Start()
+            ren.RemoveAllViewProps()
             print("Animating...")
         elif iFrame in pauses:
             print("Press 'q' to continue")
             renWin.Render()
             iren.Start()
+            ren.RemoveAllViewProps()
             print("Animating...")
         elif iFrame == len(u_values) - 1:
             renWin.Render()
