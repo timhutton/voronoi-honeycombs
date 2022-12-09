@@ -101,9 +101,21 @@ def temporallyConsistentRandomColor(i):
     return random.random(), random.random(), random.random()
 
 
-#TODO: code for parquet deformation
+def getUnitCells():
+    """ Returns a family of unit cells each with 8 cell centers that we can interpolate between
+           unit_cell : List of 3D points expressed in some convenient scale
+           scale     : Factor to divide by to obtain the points we want
+           size      : Dimensions of the resulting unit cell after dividing points by scale
+    """
+    return { "cubic": { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
+             "bcc": { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "BCC" },
+             "fcc": { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "FCC" },
+             "diamondCubic": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond cubic" },
+             "weairePhelan": { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "Weaire-Phelan approximation" } }
 
-def main():
+
+def animateTransitions():
+    """Interactive display of animated transition between two honeycombs."""
 
     window_size = 800, 600
     background_color = 0.95, 0.9, 0.85
@@ -114,21 +126,12 @@ def main():
     u_values = [iFrame / num_frames for iFrame in range(num_frames + 1)]
     u_values.extend(u_values[::-1])
     pauses = [num_frames]
-
-    # A family of unit cells each with 8 cell centers that we can interpolate between
-    #   unit_cell : List of 3D points expressed in some convenient scale.
-    #   scale     : Factor to divide by to obtain the points we want.
-    #   size      : Dimensions of the resulting unit cell after dividing points by scale.
-    cubic2x2x2   = { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2] }
-    bcc2x2x1     = { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1] }
-    fcc1x1x2     = { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4] }
-    diamondCubic = { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2] }
-    weairePhelan = { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2] }
+    unit_cells = getUnitCells()
 
     for iFrame, u in enumerate(u_values):
 
         # Make a list of 3D points
-        unit_cell, size = lerpUnitCell(cubic2x2x2, diamondCubic, u)
+        unit_cell, size = lerpUnitCell(unit_cells["cubic"], unit_cells["diamondCubic"], u)
         nx, ny, nz = (2, 2, 2)
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
@@ -176,5 +179,20 @@ def main():
             ren.RemoveAllViewProps()
 
 
+def makeParquetDeformation():
+    """Interactive display of a parquet deformation between different honeycombs."""
+
+    window_size = 800, 600
+    background_color = 0.95, 0.9, 0.85
+    ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
+
+    # TODO
+
+    iren.Start()
+
+
 if __name__ == "__main__":
-    main()
+
+    animateTransitions()
+
+    #makeParquetDeformation()
