@@ -122,16 +122,13 @@ def getUnitCell(label):
            scale     : Factor to divide by to obtain the points we want
            size      : Dimensions of the resulting unit cell after dividing points by scale
     """
-    unit_cells = { "cubic":        { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)],
-                                     "scale": 1, "size": [2,2,2], "name": "Cubic" },
-                   "bcc":          { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)],
-                                     "scale": 2, "size": [2,2,1], "name": "BCC" },
-                   "fcc":          { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)],
-                                     "scale": 1, "size": [2,2,4], "name": "FCC" },
-                   "diamondCubic": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)],
-                                     "scale": 2, "size": [2,2,2], "name": "Diamond cubic" },
-                   "weairePhelan": { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)],
-                                     "scale": 2, "size": [2,2,2], "name": "Weaire-Phelan approximation" } }
+    unit_cells = {
+        "cubic":   { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
+        "bcc":     { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "BCC" },
+        "fcc":     { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "FCC" },
+        "diamond": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond cubic" },
+        "a15":     { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "A15 crystal (Weaire-Phelan)" },
+        "laves":   { "unit_cell": [(0,0,0),(1,3,0),(2,3,1),(3,0,1),(0,1,3),(1,2,3),(2,2,2),(3,1,2)], "scale": 2, "size": [2,2,2], "name": "Laves graph" } }
     return unit_cells[label]
 
 
@@ -151,7 +148,7 @@ def animateTransitions():
     for iFrame, u in enumerate(u_values):
 
         # Make a list of 3D points
-        unit_cell, size = lerpUnitCell(getUnitCell("cubic"), getUnitCell("diamondCubic"), u)
+        unit_cell, size = lerpUnitCell(getUnitCell("cubic"), getUnitCell("laves"), u)
         nx, ny, nz = 2, 2, 2
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
@@ -225,7 +222,7 @@ def makeParquetDeformation():
     label_scale = 0.5
 
     nx, ny, nz = 3, 2, 20  # per transition
-    sequence = ["cubic", "bcc", "fcc", "diamondCubic", "weairePhelan"]
+    sequence = ["cubic", "bcc", "fcc", "diamond", "a15"]
 
     # Collect points by stacking unit cells along the z-axis
     internal_pts = [] # ones we will display the Voronoi cell for
@@ -297,4 +294,4 @@ def makeParquetDeformation():
 if __name__ == "__main__":
 
     animateTransitions()
-    makeParquetDeformation()
+    #makeParquetDeformation()
