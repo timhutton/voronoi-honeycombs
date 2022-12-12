@@ -14,7 +14,7 @@ Discussion thread: https://mathstodon.xyz/@timhutton/109469821382910347
 
 ### Examples: ###
 
-The Voronoi approximation of the [Weaire-Phelan structure](https://en.wikipedia.org/wiki/Weaire%E2%80%93Phelan_structure):
+The A15 crystal, which is the Voronoi approximation of the [Weaire-Phelan structure](https://en.wikipedia.org/wiki/Weaire%E2%80%93Phelan_structure):
 ![image](https://user-images.githubusercontent.com/647092/206327613-dec7f406-567a-4541-8f94-38f37e842a0c.png)
 
 The [diamond-cubic](https://en.wikipedia.org/wiki/Diamond_cubic) structure, showing the unit cell on the left and more of the cells on the right:
