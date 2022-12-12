@@ -83,6 +83,18 @@ def addSphere(renderer, pos, radius, color):
     actor.GetProperty().SetColor(*color)
     renderer.AddActor(actor)
 
+def addUnitCube(renderer, size):
+    """Add the unit cube to the renderer scene."""
+    cube = vtk.vtkCubeSource()
+    cube.SetBounds(0, size[0], 0, size[1], 0, size[2])
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputConnection(cube.GetOutputPort())
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+    actor.GetProperty().SetColor(0, 0, 0)
+    actor.GetProperty().SetRepresentationToWireframe()
+    renderer.AddActor(actor)
+
 
 def addLabel(pos, text, renderer, color, scale):
     """Add a text label to the renderer scene."""
@@ -132,7 +144,7 @@ def getUnitCell(label):
     return unit_cells[label]
 
 
-def animateTransitions():
+def animateTransitions(a="cubic", b="laves", showUnitCell=False):
     """Interactive display of animated transition between two honeycombs."""
 
     window_size = 800, 600
@@ -148,8 +160,8 @@ def animateTransitions():
     for iFrame, u in enumerate(u_values):
 
         # Make a list of 3D points
-        unit_cell, size = lerpUnitCell(getUnitCell("cubic"), getUnitCell("laves"), u)
-        nx, ny, nz = 2, 2, 2
+        unit_cell, size = lerpUnitCell(getUnitCell(a), getUnitCell(b), u)
+        nx, ny, nz = (1, 1, 1) if showUnitCell else (2, 2, 2)
         genpt = lambda p, offset: [p[i] + offset[i]*size[i] for i in range(3)]
         internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
         internal_pts = [genpt(p, offset) for p in unit_cell for offset in internal_offsets]
@@ -166,8 +178,10 @@ def animateTransitions():
                 continue
             verts = v.vertices[indices]
             faces = scipy.spatial.ConvexHull(verts).simplices
-            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False)
-            #addSphere(ren, internal_pts[iVert], 0.05, temporallyConsistentRandomColor(iVert))
+            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=showUnitCell)
+            if showUnitCell:
+                addSphere(ren, internal_pts[iVert], 0.05, temporallyConsistentRandomColor(iVert))
+                addUnitCube(ren, size)
 
         if iFrame == 0:
             print("Controls:")
@@ -293,5 +307,5 @@ def makeParquetDeformation():
 
 if __name__ == "__main__":
 
-    animateTransitions()
+    animateTransitions(a="cubic", b="laves", showUnitCell=False)
     #makeParquetDeformation()
