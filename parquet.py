@@ -211,15 +211,16 @@ def animateTransitions(a="cubic", b="laves", showUnitCell=False):
             ren.RemoveAllViewProps()
 
 
-def addParquetSlice(unit_cell_pts, size, pos, d, nx, ny, internal_pts, external_pts):
+def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts):
     """Add points to internal_pts/external_pts for each unit cell in the X-Y range specified."""
     for ix,iy in itertools.product(range(-1, nx + 1), range(-1, ny + 1)):
-        offset_unit_cell_pts = [(pos[0] + size[0]*ix + unit_cell_pt[0], pos[1] + size[1]*iy + unit_cell_pt[1], pos[2] + d * unit_cell_pt[2]) for unit_cell_pt in unit_cell_pts]
+        offset_unit_cell_pts = [(pos[0] + size[0]*ix + unit_cell_pt[0],
+                                 pos[1] + size[1]*iy + unit_cell_pt[1],
+                                 pos[2] + unit_cell_pt[2]) for unit_cell_pt in unit_cell_pts]
         if ix >= 0 and ix < nx and iy >= 0 and iy < ny:
             internal_pts.extend(offset_unit_cell_pts)
         else:
             external_pts.extend(offset_unit_cell_pts)
-    pos[2] += d * size[2]
 
 
 def chunks(lst: list, n: int):
@@ -251,20 +252,24 @@ def staticParquetDeformation():
         if iTransition == 0:
             # add an initial hidden slice to avoid boundary effects
             unit_cell_pts, size = lerpUnitCell(cell1, cell2, 0)
-            addParquetSlice(unit_cell_pts, size, pos, 1, nx, ny, external_pts, external_pts)
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
+            pos[2] += size[2]
         for iz in range(nz):
             u = iz / nz  # (excludes final value)
             unit_cell_pts, size = lerpUnitCell(cell1, cell2, u)
-            addParquetSlice(unit_cell_pts, size, pos, 1, nx, ny, internal_pts, external_pts)
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
+            pos[2] += size[2]
             if iz == 0:
                 addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell1["name"], ren, label_color, label_scale)
         if iTransition == len(transition_pairs) - 1:
             unit_cell_pts, size = lerpUnitCell(cell1, cell2, 1)
             # add a final slice to complete the transition
-            addParquetSlice(unit_cell_pts, size, pos, 1, nx, ny, internal_pts, external_pts)
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
+            pos[2] += size[2]
             addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell2["name"], ren, label_color, label_scale)
             # add a final hidden slice to avoid boundary effects
-            addParquetSlice(unit_cell_pts, size, pos, 1, nx, ny, external_pts, external_pts)
+            addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
+            pos[2] += size[2]
 
     # Run Voronoi over all the points
     print()
@@ -310,74 +315,72 @@ def staticParquetDeformation():
 def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
-    print("Animating...")
-
     window_size = 800, 600
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     label_color = 0, 0, 0
     label_scale = 0.5
 
-    ren.GetActiveCamera().SetPosition(10, 0, 0)
+    ren.GetActiveCamera().SetPosition(12, 5, 0)
     ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
+    first = True
 
     nx, ny, nz = 1, 1, 10
-    sequence = ["cubic", "bcc", "fcc", "diamond", "a15"]
+    sequence = ["cubic", "laves", "cubic"]#"bcc", "fcc", "diamond", "a15"]
 
     # Collect points by stacking unit cells along the z-axis
-    num_frames = 200
-    for iFrame in range(50, num_frames):
-        u_center = len(sequence) * iFrame / num_frames
-        print(u_center)
+    num_frames = 100
+    for iFrame in range(0, num_frames):
+        u_center = len(sequence[:-2]) * iFrame / num_frames
         internal_pts = [] # ones we will display the Voronoi cell for
         external_pts = [] # ones with possible boundary effects that we need to compute Voronoi but don't display
         # iterate from the center slice in both directions
         for d in [1, -1]:
             pos = [0, 0, 0]
-            for z in range(0, nz):
-                if z == 0 and d == -1:
-                    continue
-                u = u_center + d * z / nz
-                u_pre = math.floor(u)
-                u_post = u_pre + 1
-                u_frac = u - u_pre
-                cell1 = getUnitCell(sequence[u_pre])
-                cell2 = getUnitCell(sequence[u_post])
-                unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
-                if z < nz - 1:
-                    addParquetSlice(unit_cell_pts, size, pos, d, nx, ny, internal_pts, external_pts)
-                else:
-                    # add hidden slice to avoid boundary effects
-                    addParquetSlice(unit_cell_pts, size, pos, d, nx, ny, external_pts, external_pts)
-                if z == 0:
-                    pos[2] += d * size[2] / 2 # center slice adds half its width
-                else:
-                    pos[2] += d * size[2]
+            for iz in range(0, nz):
+                if iz > 0 or d == 1:
+                    u = u_center + d * iz / nz
+                    u_pre = math.floor(u)
+                    u_post = u_pre + 1
+                    u_frac = u - u_pre
+                    print(iFrame, u_center, d, iz, u, u_pre, u_post, u_frac, len(sequence))
+                    cell1 = getUnitCell(sequence[u_pre])
+                    cell2 = getUnitCell(sequence[u_post])
+                    unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
+                    if iz < nz - 1:
+                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
+                    else:
+                        # add hidden slice to avoid boundary effects
+                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
+                pos[2] += d * size[2]
         for iVert, internal_pt in enumerate(internal_pts):
-            print(internal_pt)
             addSphere(ren, internal_pt, 0.05, temporallyConsistentRandomColor(iVert))
 
         # Run Voronoi over all the points
-        print("Computing Voronoi structure for the parquet...")
         v = scipy.spatial.Voronoi(internal_pts + external_pts)
 
-        if False:
-            # Add the cells to the scene
-            print("Adding the Voronoi cells to the scene...")
-            actors = []
-            for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
-                indices = v.regions[reg_num]
-                if -1 in indices: # external region including point at infinity
-                    continue
-                verts = v.vertices[indices]
-                faces = scipy.spatial.ConvexHull(verts).simplices
-                actors.append(addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False))
+        # Add the cells to the scene
+        actors = []
+        for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
+            indices = v.regions[reg_num]
+            if -1 in indices: # external region including point at infinity
+                continue
+            verts = v.vertices[indices]
+            faces = scipy.spatial.ConvexHull(verts).simplices
+            actors.append(addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False))
 
         # Render
-        ren.ResetCamera()
         renWin.Render()
-        iren.Start()
-        exit()
+        if first:
+            print("Controls:")
+            print("  mouse left drag: rotate the scene")
+            print("  mouse right drag up/down, or mouse wheel: zoom in/out")
+            print("  shift + mouse left drag: pan")
+            print("\nPress 'q' to animate")
+            first = False
+            iren.Start()
+            print("Animating...")
+        ren.RemoveAllViewProps()
 
 
 if __name__ == "__main__":
