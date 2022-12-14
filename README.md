@@ -21,4 +21,9 @@ The [diamond-cubic](https://en.wikipedia.org/wiki/Diamond_cubic) structure, show
 
 https://user-images.githubusercontent.com/647092/206363589-336ff4e7-72a4-4b69-b06b-1f90c6ac1629.mp4
 
+A parquet deformation, animates between: cubic, Laves graph, diamond cubic, A15 crystal (Weaire-Phelan) and back to cubic:
+
+
+
+https://user-images.githubusercontent.com/647092/207721730-731077a5-4de5-48b3-8655-7838e5d63a34.mp4
 
