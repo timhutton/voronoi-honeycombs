@@ -124,7 +124,7 @@ def lerpUnitCell(a, b, u):
 
 
 def temporallyConsistentRandomColor(i, colors):
-    """Return a random RGB [0,1] color, and remember previously answers."""
+    """Return a random RGB [0,1] color, and remember previous answers."""
     if not i in colors:
         colors[i] = random.random(), random.random(), random.random()
     return colors[i]
@@ -227,96 +227,6 @@ def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts
                 external_pts.append(offset_unit_cell_pt)
 
 
-def chunks(lst: list, n: int):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
-
-
-def staticParquetDeformation():
-    """Interactive display of a parquet deformation between different honeycombs."""
-
-    window_size = 800, 600
-    background_color = 0.95, 0.9, 0.85
-    ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
-    label_color = 0, 0, 0
-    label_scale = 0.5
-    colors = {}
-
-    nx, ny, nz = 3, 2, 20  # per transition
-    sequence = ["cubic", "bcc", "fcc", "diamond", "a15"]
-
-    # Collect points by stacking unit cells along the z-axis
-    internal_pts = [] # ones we will display the Voronoi cell for
-    external_pts = [] # ones with possible boundary effects that we need to compute Voronoi but don't display
-    pos = [0, 0, 0]
-    transition_pairs = list(zip(sequence, sequence[1:]))
-    for iTransition,(type1,type2) in enumerate(transition_pairs):
-        cell1 = getUnitCell(type1)
-        cell2 = getUnitCell(type2)
-        if iTransition == 0:
-            # add an initial hidden slice to avoid boundary effects
-            unit_cell_pts, size = lerpUnitCell(cell1, cell2, 0)
-            addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
-            pos[2] += size[2]
-        for iz in range(nz):
-            u = iz / nz  # (excludes final value)
-            unit_cell_pts, size = lerpUnitCell(cell1, cell2, u)
-            addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
-            pos[2] += size[2]
-            if iz == 0:
-                addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell1["name"], ren, label_color, label_scale)
-        if iTransition == len(transition_pairs) - 1:
-            unit_cell_pts, size = lerpUnitCell(cell1, cell2, 1)
-            # add a final slice to complete the transition
-            addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
-            pos[2] += size[2]
-            addLabel((pos[0] + nx * size[0], pos[1] + ny * size[1], pos[2]), cell2["name"], ren, label_color, label_scale)
-            # add a final hidden slice to avoid boundary effects
-            addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
-            pos[2] += size[2]
-
-    # Run Voronoi over all the points
-    print()
-    print("Computing Voronoi structure for the parquet...")
-    v = scipy.spatial.Voronoi(internal_pts + external_pts)
-
-    # Add the cells to the scene
-    print("Adding the Voronoi cells to the scene...")
-    actors = []
-    for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
-        indices = v.regions[reg_num]
-        if -1 in indices: # external region including point at infinity
-            continue
-        verts = v.vertices[indices]
-        faces = scipy.spatial.ConvexHull(verts).simplices
-        actors.append(addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False))
-
-    # Animate the camera along the parquet
-    print("Animating...")
-    num_frames = 2500
-    for iFrame in range(num_frames):
-        z = iFrame * (pos[2] + 30) / num_frames
-        ren.GetActiveCamera().SetPosition(4, 15, 20 + z)
-        ren.GetActiveCamera().SetFocalPoint(4, 5, 0 + z)
-        for actors_slice in chunks(actors, nx*ny*4):
-            bounds = actors_slice[0].GetBounds()
-            for actor in actors_slice:
-                if bounds[5] < z and bounds[4] > z - 50:
-                    actor.VisibilityOn()
-                else:
-                    actor.VisibilityOff()
-        renWin.Render()
-
-    # Let the user interact with the scene
-    print("Controls:")
-    print("  mouse left drag: rotate the scene")
-    print("  mouse right drag up/down, or mouse wheel: zoom in/out")
-    print("  shift + mouse left drag: pan")
-    print("\nPress 'q' to exit")
-    iren.Start()
-
-
 def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
@@ -409,5 +319,4 @@ def animateParquetDeformation():
 if __name__ == "__main__":
 
     #animateTransitions(a="cubic", b="laves", showUnitCell=False)
-    #staticParquetDeformation()
     animateParquetDeformation()
