@@ -320,23 +320,33 @@ def staticParquetDeformation():
 def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
-    window_size = 800, 600
+    window_size = 720, 480
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     label_color = 0, 0, 0
     label_scale = 0.5
     colors = {}
 
-    ren.GetActiveCamera().SetPosition(-4, -4, -7)
+    ren.GetActiveCamera().SetPosition(-2, -3, -7)
     ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
     ren.GetActiveCamera().SetViewUp(0, -1, 0)
+    light = vtk.vtkLight()
+    light.SetPosition(-5, -7, -5)
+    light.SetAmbientColor(0.4, 0.4, 0.4)
+    light.SetShadowAttenuation(0.3)
+    ren.AddLight(light)
     first = True
 
     nx, ny, nz = 2, 1, 10
     sequence = ["cubic", "cubic", "laves", "laves", "diamond", "diamond", "a15", "a15", "cubic", "cubic", "cubic"]
 
+    renWinToImage = vtk.vtkWindowToImageFilter()
+    renWinToImage.SetInput(renWin)
+    pngWriter = vtk.vtkPNGWriter()
+    pngWriter.SetInputConnection(renWinToImage.GetOutputPort())
+
     # Collect points by stacking unit cells along the z-axis
-    num_frames = 100
+    num_frames = 200
     for iFrame in range(0, num_frames):
         u_center = len(sequence[:-2]) * iFrame / num_frames
         internal_pts = [] # ones we will display the Voronoi cell for
@@ -374,9 +384,8 @@ def animateParquetDeformation():
                 continue
             verts = v.vertices[indices]
             faces = scipy.spatial.ConvexHull(verts).simplices
-            #print(iVert, coords)
             pt_coords = coords[iVert]
-            wireframe = iVert > 0 and pt_coords[0] < 1 and math.fabs(pt_coords[2]) < 3
+            wireframe = False # iVert > 0 and pt_coords[0] < 1 and math.fabs(pt_coords[2]) < 3
             addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=wireframe)
 
         # Render
@@ -390,6 +399,10 @@ def animateParquetDeformation():
             first = False
             iren.Start()
             print("Animating...")
+        renWin.Render()
+        pngWriter.SetFileName(f"render_{iFrame:05d}.png")
+        renWinToImage.Modified()
+        pngWriter.Write()
         ren.RemoveAllViewProps()
 
 
