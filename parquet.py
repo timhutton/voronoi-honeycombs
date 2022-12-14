@@ -221,7 +221,7 @@ def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts
                                    pos[2] + unit_cell_pt[2])
             if ix >= 0 and ix < nx and iy >= 0 and iy < ny:
                 if not coords is None:
-                    coords[len(internal_pts)] = ix, iy
+                    coords[len(internal_pts)] = ix, iy, pos[2]
                 internal_pts.append(offset_unit_cell_pt)
             else:
                 external_pts.append(offset_unit_cell_pt)
@@ -327,12 +327,13 @@ def animateParquetDeformation():
     label_scale = 0.5
     colors = {}
 
-    ren.GetActiveCamera().SetPosition(-9, -5, -5)
+    ren.GetActiveCamera().SetPosition(-4, -4, -7)
     ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
+    ren.GetActiveCamera().SetViewUp(0, -1, 0)
     first = True
 
     nx, ny, nz = 2, 1, 10
-    sequence = ["cubic", "cubic", "laves", "laves", "bcc", "bcc", "fcc", "fcc", "diamond", "diamond", "a15", "a15", "cubic", "cubic", "cubic"]
+    sequence = ["cubic", "cubic", "laves", "laves", "diamond", "diamond", "a15", "a15", "cubic", "cubic", "cubic"]
 
     # Collect points by stacking unit cells along the z-axis
     num_frames = 100
@@ -375,7 +376,7 @@ def animateParquetDeformation():
             faces = scipy.spatial.ConvexHull(verts).simplices
             #print(iVert, coords)
             pt_coords = coords[iVert]
-            wireframe = iVert > 0 and pt_coords[0] < 1
+            wireframe = iVert > 0 and pt_coords[0] < 1 and math.fabs(pt_coords[2]) < 3
             addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=wireframe)
 
         # Render
