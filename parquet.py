@@ -17,7 +17,6 @@
 
 print("Loading libraries...")
 
-import functools
 import itertools
 import math
 import random
@@ -124,10 +123,11 @@ def lerpUnitCell(a, b, u):
     return [lerp(pa, pb, u) for pa,pb in zip(a_pts, b_pts)], lerp(a["size"], b["size"], u)
 
 
-@functools.lru_cache
-def temporallyConsistentRandomColor(i):
+def temporallyConsistentRandomColor(i, colors):
     """Return a random RGB [0,1] color, and remember previously answers."""
-    return random.random(), random.random(), random.random()
+    if not i in colors:
+        colors[i] = random.random(), random.random(), random.random()
+    return colors[i]
 
 
 def getUnitCell(label):
@@ -152,6 +152,7 @@ def animateTransitions(a="cubic", b="laves", showUnitCell=False):
     window_size = 800, 600
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
+    colors = {}
 
     # Define the animation sequence
     num_frames = 30
@@ -180,9 +181,9 @@ def animateTransitions(a="cubic", b="laves", showUnitCell=False):
                 continue
             verts = v.vertices[indices]
             faces = scipy.spatial.ConvexHull(verts).simplices
-            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=showUnitCell)
+            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=showUnitCell)
             if showUnitCell:
-                addSphere(ren, internal_pts[iVert], 0.05, temporallyConsistentRandomColor(iVert))
+                addSphere(ren, internal_pts[iVert], 0.05, temporallyConsistentRandomColor(iVert, colors))
                 addUnitCube(ren, size)
 
         if iFrame == 0:
@@ -237,6 +238,7 @@ def staticParquetDeformation():
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     label_color = 0, 0, 0
     label_scale = 0.5
+    colors = {}
 
     nx, ny, nz = 3, 2, 20  # per transition
     sequence = ["cubic", "bcc", "fcc", "diamond", "a15"]
@@ -285,7 +287,7 @@ def staticParquetDeformation():
             continue
         verts = v.vertices[indices]
         faces = scipy.spatial.ConvexHull(verts).simplices
-        actors.append(addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False))
+        actors.append(addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False))
 
     # Animate the camera along the parquet
     print("Animating...")
@@ -312,7 +314,7 @@ def staticParquetDeformation():
     iren.Start()
 
 
-def animateParquetDeformation():
+def animateParquetDeformation(wireframe=False):
     """Interactive display of a parquet deformation between different honeycombs."""
 
     window_size = 800, 600
@@ -320,13 +322,14 @@ def animateParquetDeformation():
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     label_color = 0, 0, 0
     label_scale = 0.5
+    colors = {}
 
-    ren.GetActiveCamera().SetPosition(12, 5, 0)
+    ren.GetActiveCamera().SetPosition(9, 5, 5)
     ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
     first = True
 
     nx, ny, nz = 1, 1, 10
-    sequence = ["cubic", "laves", "cubic"]#"bcc", "fcc", "diamond", "a15"]
+    sequence = ["cubic", "cubic", "laves", "bcc", "fcc", "diamond", "a15", "cubic", "cubic", "cubic"]
 
     # Collect points by stacking unit cells along the z-axis
     num_frames = 100
@@ -338,36 +341,37 @@ def animateParquetDeformation():
         for d in [1, -1]:
             pos = [0, 0, 0]
             for iz in range(0, nz):
+                u = u_center + d * iz / nz
+                u_pre = math.floor(u)
+                u_post = u_pre + 1
+                u_frac = u - u_pre
+                #print(iFrame, u_center, d, iz, u, u_pre, u_post, u_frac, len(sequence))
+                cell1 = getUnitCell(sequence[u_pre])
+                cell2 = getUnitCell(sequence[u_post])
+                unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
                 if iz > 0 or d == 1:
-                    u = u_center + d * iz / nz
-                    u_pre = math.floor(u)
-                    u_post = u_pre + 1
-                    u_frac = u - u_pre
-                    print(iFrame, u_center, d, iz, u, u_pre, u_post, u_frac, len(sequence))
-                    cell1 = getUnitCell(sequence[u_pre])
-                    cell2 = getUnitCell(sequence[u_post])
-                    unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
                     if iz < nz - 1:
                         addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
                     else:
                         # add hidden slice to avoid boundary effects
                         addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
                 pos[2] += d * size[2]
-        for iVert, internal_pt in enumerate(internal_pts):
-            addSphere(ren, internal_pt, 0.05, temporallyConsistentRandomColor(iVert))
+        if wireframe:
+            for iVert, internal_pt in enumerate(internal_pts):
+                addSphere(ren, internal_pt, 0.05, temporallyConsistentRandomColor(iVert, colors))
 
-        # Run Voronoi over all the points
-        v = scipy.spatial.Voronoi(internal_pts + external_pts)
+        if True:
+            # Run Voronoi over all the points
+            v = scipy.spatial.Voronoi(internal_pts + external_pts)
 
-        # Add the cells to the scene
-        actors = []
-        for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
-            indices = v.regions[reg_num]
-            if -1 in indices: # external region including point at infinity
-                continue
-            verts = v.vertices[indices]
-            faces = scipy.spatial.ConvexHull(verts).simplices
-            actors.append(addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert), opacity=1, wireframe=False))
+            # Add the cells to the scene
+            for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
+                indices = v.regions[reg_num]
+                if -1 in indices: # external region including point at infinity
+                    continue
+                verts = v.vertices[indices]
+                faces = scipy.spatial.ConvexHull(verts).simplices
+                addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=wireframe)
 
         # Render
         renWin.Render()
@@ -387,4 +391,4 @@ if __name__ == "__main__":
 
     #animateTransitions(a="cubic", b="laves", showUnitCell=False)
     #staticParquetDeformation()
-    animateParquetDeformation()
+    animateParquetDeformation(wireframe=False)
