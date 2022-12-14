@@ -212,16 +212,19 @@ def animateTransitions(a="cubic", b="laves", showUnitCell=False):
             ren.RemoveAllViewProps()
 
 
-def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts):
+def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts, coords=None):
     """Add points to internal_pts/external_pts for each unit cell in the X-Y range specified."""
     for ix,iy in itertools.product(range(-1, nx + 1), range(-1, ny + 1)):
-        offset_unit_cell_pts = [(pos[0] + size[0]*ix + unit_cell_pt[0],
-                                 pos[1] + size[1]*iy + unit_cell_pt[1],
-                                 pos[2] + unit_cell_pt[2]) for unit_cell_pt in unit_cell_pts]
-        if ix >= 0 and ix < nx and iy >= 0 and iy < ny:
-            internal_pts.extend(offset_unit_cell_pts)
-        else:
-            external_pts.extend(offset_unit_cell_pts)
+        for unit_cell_pt in unit_cell_pts:
+            offset_unit_cell_pt = (pos[0] + size[0]*ix + unit_cell_pt[0],
+                                   pos[1] + size[1]*iy + unit_cell_pt[1],
+                                   pos[2] + unit_cell_pt[2])
+            if ix >= 0 and ix < nx and iy >= 0 and iy < ny:
+                if not coords is None:
+                    coords[len(internal_pts)] = ix, iy
+                internal_pts.append(offset_unit_cell_pt)
+            else:
+                external_pts.append(offset_unit_cell_pt)
 
 
 def chunks(lst: list, n: int):
@@ -314,7 +317,7 @@ def staticParquetDeformation():
     iren.Start()
 
 
-def animateParquetDeformation(wireframe=False):
+def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
     window_size = 800, 600
@@ -324,12 +327,12 @@ def animateParquetDeformation(wireframe=False):
     label_scale = 0.5
     colors = {}
 
-    ren.GetActiveCamera().SetPosition(9, 5, 5)
+    ren.GetActiveCamera().SetPosition(-9, -5, -5)
     ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
     first = True
 
-    nx, ny, nz = 1, 1, 10
-    sequence = ["cubic", "cubic", "laves", "bcc", "fcc", "diamond", "a15", "cubic", "cubic", "cubic"]
+    nx, ny, nz = 2, 1, 10
+    sequence = ["cubic", "cubic", "laves", "laves", "bcc", "bcc", "fcc", "fcc", "diamond", "diamond", "a15", "a15", "cubic", "cubic", "cubic"]
 
     # Collect points by stacking unit cells along the z-axis
     num_frames = 100
@@ -337,6 +340,7 @@ def animateParquetDeformation(wireframe=False):
         u_center = len(sequence[:-2]) * iFrame / num_frames
         internal_pts = [] # ones we will display the Voronoi cell for
         external_pts = [] # ones with possible boundary effects that we need to compute Voronoi but don't display
+        coords = {}
         # iterate from the center slice in both directions
         for d in [1, -1]:
             pos = [0, 0, 0]
@@ -351,27 +355,28 @@ def animateParquetDeformation(wireframe=False):
                 unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
                 if iz > 0 or d == 1:
                     if iz < nz - 1:
-                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts)
+                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts, coords)
                     else:
                         # add hidden slice to avoid boundary effects
-                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts)
+                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts, coords)
                 pos[2] += d * size[2]
-        if wireframe:
-            for iVert, internal_pt in enumerate(internal_pts):
-                addSphere(ren, internal_pt, 0.05, temporallyConsistentRandomColor(iVert, colors))
+        for iVert, internal_pt in enumerate(internal_pts):
+            addSphere(ren, internal_pt, 0.05, temporallyConsistentRandomColor(iVert, colors))
 
-        if True:
-            # Run Voronoi over all the points
-            v = scipy.spatial.Voronoi(internal_pts + external_pts)
+        # Run Voronoi over all the points
+        v = scipy.spatial.Voronoi(internal_pts + external_pts)
 
-            # Add the cells to the scene
-            for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
-                indices = v.regions[reg_num]
-                if -1 in indices: # external region including point at infinity
-                    continue
-                verts = v.vertices[indices]
-                faces = scipy.spatial.ConvexHull(verts).simplices
-                addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=wireframe)
+        # Add the cells to the scene
+        for iVert in range(len(internal_pts)): # only interested in the internal cells, to avoid boundary effects
+            indices = v.regions[v.point_region[iVert]]
+            if -1 in indices: # external region including point at infinity
+                continue
+            verts = v.vertices[indices]
+            faces = scipy.spatial.ConvexHull(verts).simplices
+            #print(iVert, coords)
+            pt_coords = coords[iVert]
+            wireframe = iVert > 0 and pt_coords[0] < 1
+            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=wireframe)
 
         # Render
         renWin.Render()
@@ -391,4 +396,4 @@ if __name__ == "__main__":
 
     #animateTransitions(a="cubic", b="laves", showUnitCell=False)
     #staticParquetDeformation()
-    animateParquetDeformation(wireframe=False)
+    animateParquetDeformation()
