@@ -60,13 +60,24 @@ def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
     """Add the specified surface to the renderer scene."""
     surface = makePolyData(verts, faces)
     mapper = vtk.vtkPolyDataMapper()
+    if wireframe:
+        pdn = vtk.vtkPolyDataNormals() # ensure faces are oriented consistently
+        pdn.SetInputData(surface)
+        pdn.ConsistencyOn()
+        pdn.SplittingOff()
+        edge_filter = vtk.vtkFeatureEdges()
+        edge_filter.FeatureEdgesOn()
+        edge_filter.SetFeatureAngle(0.1)
+        edge_filter.SetInputConnection(pdn.GetOutputPort())
+        edge_filter.Update()
+        surface.DeepCopy(edge_filter.GetOutput())
+        surface.GetCellData().Initialize()
+        surface.GetPointData().Initialize()
     mapper.SetInputData(surface)
     actor = vtk.vtkActor()
     actor.SetMapper(mapper)
     actor.GetProperty().SetColor(*color)
     actor.GetProperty().SetOpacity(opacity)
-    if wireframe:
-        actor.GetProperty().SetRepresentationToWireframe()
     renderer.AddActor(actor)
     return actor
 
@@ -270,7 +281,6 @@ def animateParquetDeformation():
                 u_pre = math.floor(u)
                 u_post = u_pre + 1
                 u_frac = u - u_pre
-                #print(iFrame, u_center, d, iz, u, u_pre, u_post, u_frac, len(sequence))
                 cell1 = getUnitCell(sequence[u_pre])
                 cell2 = getUnitCell(sequence[u_post])
                 unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
@@ -295,8 +305,12 @@ def animateParquetDeformation():
             verts = v.vertices[indices]
             faces = scipy.spatial.ConvexHull(verts).simplices
             pt_coords = coords[iVert]
-            wireframe = False # iVert > 0 and pt_coords[0] < 1 and math.fabs(pt_coords[2]) < 3
-            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=wireframe)
+            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False)
+            if iVert == 0:
+                # Add a rotating wireframe copy
+                theta = 10 * iFrame / num_frames
+                verts2 = [(x * math.cos(theta) - z * math.sin(theta) - 2, y, x * math.sin(theta) + z * math.cos(theta)) for x,y,z in verts]
+                addSurface(ren, verts2, faces, (0, 0, 0), opacity=1, wireframe=True)
 
         # Render
         renWin.Render()
