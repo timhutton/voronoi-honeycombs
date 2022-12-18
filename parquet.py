@@ -164,17 +164,31 @@ def addUnitCube(target, size):
     AddActorOrPart(actor, target)
 
 
-def addLabel(pos, text, target, color, scale):
+def addLabel(target, camera, pos, text, color, scale):
     """Add a text label to the target."""
     vector_text = vtk.vtkVectorText()
     vector_text.SetText(text);
     mapper = vtk.vtkPolyDataMapper()
     mapper.SetInputConnection(vector_text.GetOutputPort())
     actor = vtk.vtkFollower()
+    actor.SetCamera(camera)
     actor.SetMapper(mapper)
     actor.GetProperty().SetColor(*color)
     actor.SetScale(scale)
     actor.SetPosition(*pos)
+    AddActorOrPart(actor, target)
+
+
+def addCaption(target, text, color, scale):
+    """Add a text caption to the target."""
+    actor = vtk.vtkTextActor()
+    actor.SetInput(text);
+    actor.GetTextProperty().SetFontFamilyToArial()
+    actor.GetTextProperty().BoldOn();
+    actor.GetTextProperty().SetFontSize(30);
+    actor.GetTextProperty().ShadowOff();
+    actor.GetTextProperty().SetColor(0.1,0.08,0.07);
+    actor.SetDisplayPosition(20, 20);
     AddActorOrPart(actor, target)
 
 
@@ -205,11 +219,11 @@ def getUnitCell(label):
     """
     unit_cells = {
         "cubic":   { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
-        "bcc":     { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "BCC" },
-        "fcc":     { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "FCC" },
-        "diamond": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond cubic" },
+        "bcc":     { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "BCC (truncated octahedra)" },
+        "fcc":     { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "FCC (rhombic dodecahedra)" },
+        "diamond": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond cubic (triakis truncated tetrahedra)" },
         "a15":     { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "A15 crystal (Weaire-Phelan)" },
-        "laves":   { "unit_cell": [(0,0,0),(1,3,0),(2,3,1),(3,0,1),(0,1,3),(1,2,3),(2,2,2),(3,1,2)], "scale": 2, "size": [2,2,2], "name": "Laves graph" } }
+        "laves":   { "unit_cell": [(0,0,0),(1,3,0),(2,3,1),(3,0,1),(0,1,3),(1,2,3),(2,2,2),(3,1,2)], "scale": 2, "size": [2,2,2], "name": "Laves graph (triamond)" } }
     return unit_cells[label]
 
 
@@ -298,16 +312,21 @@ def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
     # --- Options ---
-    #window_size = 720, 480
-    window_size = 1920, 1080
+    saveFrames = False
+    if saveFrames:
+        window_size = 1920, 1080
+        num_frames = 800
+        nx, ny, nz = 10, 1, 2
+    else:
+        window_size = 720, 480
+        num_frames = 400
+        nx, ny, nz = 3, 1, 2
+    rotationSpeed = 300
     background_color = 0.95, 0.9, 0.85
-    ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     label_color = 0, 0, 0
     label_scale = 0.5
-    saveFrames = True
-    num_frames = 800
-    rotationSpeed = 300
 
+    ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     ren.GetActiveCamera().SetPosition(-10, 8.1, -7.9)
     ren.GetActiveCamera().SetFocalPoint(-0.4, 0.2, 0.7)
     ren.GetActiveCamera().SetViewUp(0, 1, 0)
@@ -317,12 +336,8 @@ def animateParquetDeformation():
     first = True
     colors = {}
 
-    if saveFrames:
-        nx, ny, nz = 10, 1, 2
-    else:
-        nx, ny, nz = 3, 1, 2
-    sequence = ["cubic", "cubic", "a15", "cubic", "bcc", "cubic", "laves", "cubic", "fcc", "cubic", "diamond", "cubic"]
-    sequence = [x for x in sequence for _ in range(3)] # duplicate entries to pause on each one
+    sequence = ["cubic", "cubic", "a15", "cubic", "bcc", "cubic", "laves", "cubic", "fcc", "cubic", "diamond", "cubic", "cubic"]
+    sequence = [x for x in sequence for _ in range(4)] # duplicate entries to pause on each one
 
     if saveFrames:
         renWinToImage = vtk.vtkWindowToImageFilter()
@@ -355,6 +370,8 @@ def animateParquetDeformation():
                     for iVert, internal_pt in enumerate(unit_cell_pts):
                         addSphere(unit_cube_assembly, internal_pt, 0.07, temporallyConsistentRandomColor(iVert, colors))
                         addLine(unit_cube_assembly, internal_pt, (internal_pt[0], 0, internal_pt[2]), (0,0,0))
+                    if cell1 == cell2:
+                        addCaption(ren, cell1["name"], (0,0,0), 0.5)
                 if i > 0 or d == 1:
                     if i < nx - 1:
                         addParquetSlice(unit_cell_pts, size, pos, ny, nz, internal_pts, external_pts, coords)
