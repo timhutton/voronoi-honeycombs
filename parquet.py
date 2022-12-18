@@ -67,8 +67,9 @@ def AddActorOrPart(actor, target):
 def addSurface(target, verts, faces, color, opacity=1, wireframe=False):
     """Add the specified surface to the target."""
     surface = makePolyData(verts, faces)
-    mapper = vtk.vtkPolyDataMapper()
     if wireframe:
+        radius = 0.025
+        mapper = vtk.vtkPolyDataMapper()
         pdn = vtk.vtkPolyDataNormals() # ensure faces are oriented consistently
         pdn.SetInputData(surface)
         pdn.ConsistencyOn()
@@ -81,13 +82,38 @@ def addSurface(target, verts, faces, color, opacity=1, wireframe=False):
         surface.DeepCopy(edge_filter.GetOutput())
         surface.GetCellData().Initialize()
         surface.GetPointData().Initialize()
-    mapper.SetInputData(surface)
-    actor = vtk.vtkActor()
-    actor.SetMapper(mapper)
-    actor.GetProperty().SetColor(*color)
-    actor.GetProperty().SetOpacity(opacity)
-    AddActorOrPart(actor, target)
-    return actor
+        tubefilter = vtk.vtkTubeFilter()
+        tubefilter.SetInputData(surface)
+        tubefilter.SetRadius(radius)
+        tubefilter.SetNumberOfSides(20)
+        mapper.SetInputConnection(tubefilter.GetOutputPort())
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(*color)
+        actor.GetProperty().SetOpacity(opacity)
+        AddActorOrPart(actor, target)
+        spheres = vtk.vtkSphereSource()
+        spheres.SetRadius(radius)
+        spheres.SetThetaResolution(20)
+        spheres.SetPhiResolution(20)
+        glypher = vtk.vtkGlyph3D()
+        glypher.SetInputData(surface)
+        glypher.SetSourceConnection(spheres.GetOutputPort())
+        mapper2 = vtk.vtkPolyDataMapper()
+        mapper2.SetInputConnection(glypher.GetOutputPort())
+        actor2 = vtk.vtkActor()
+        actor2.SetMapper(mapper2)
+        actor2.GetProperty().SetColor(*color)
+        actor2.GetProperty().SetOpacity(opacity)
+        AddActorOrPart(actor2, target)
+    else:
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(surface)
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(*color)
+        actor.GetProperty().SetOpacity(opacity)
+        AddActorOrPart(actor, target)
 
 
 def addSphere(target, pos, radius, color):
@@ -231,16 +257,16 @@ def animateTransitions(a="cubic", b="laves", showUnitCell=False):
             ren.RemoveAllViewProps()
 
 
-def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts, coords=None):
-    """Add points to internal_pts/external_pts for each unit cell in the X-Y range specified."""
-    for ix,iy in itertools.product(range(-1, nx + 1), range(-1, ny + 1)):
+def addParquetSlice(unit_cell_pts, size, pos, ny, nz, internal_pts, external_pts, coords=None):
+    """Add points to internal_pts/external_pts for each unit cell in the Y-Z range specified."""
+    for iy,iz in itertools.product(range(-1, ny + 1), range(-1, nz + 1)):
         for unit_cell_pt in unit_cell_pts:
-            offset_unit_cell_pt = (pos[0] + size[0]*ix + unit_cell_pt[0],
+            offset_unit_cell_pt = (pos[0] + unit_cell_pt[0],
                                    pos[1] + size[1]*iy + unit_cell_pt[1],
-                                   pos[2] + unit_cell_pt[2])
-            if ix >= 0 and ix < nx and iy >= 0 and iy < ny:
+                                   pos[2] + size[2]*iz + unit_cell_pt[2])
+            if iy >= 0 and iy < ny and iz >= 0 and iz < nz:
                 if not coords is None:
-                    coords[len(internal_pts)] = ix, iy, pos[2]
+                    coords[len(internal_pts)] = pos[0], iy, iz
                 internal_pts.append(offset_unit_cell_pt)
             else:
                 external_pts.append(offset_unit_cell_pt)
@@ -249,25 +275,24 @@ def addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts
 def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
-    window_size = 720, 480
+    #window_size = 720, 480
+    window_size = 1920, 1080
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     label_color = 0, 0, 0
     label_scale = 0.5
     colors = {}
 
-    ren.GetActiveCamera().SetPosition(-2, -3, -7)
-    ren.GetActiveCamera().SetFocalPoint(0, 0, 0)
-    ren.GetActiveCamera().SetViewUp(0, -1, 0)
-    light = vtk.vtkLight()
-    light.SetPosition(-5, -7, -5)
-    light.SetAmbientColor(0.4, 0.4, 0.4)
-    light.SetShadowAttenuation(0.3)
-    ren.AddLight(light)
+    ren.GetActiveCamera().SetPosition(-10, 8.1, -7.9)
+    ren.GetActiveCamera().SetFocalPoint(-0.4, 0.2, 0.7)
+    ren.GetActiveCamera().SetViewUp(0, 1, 0)
+    lightkit = vtk.vtkLightKit()
+    lightkit.AddLightsToRenderer(ren)
     first = True
 
-    nx, ny, nz = 2, 1, 3 #  10
-    sequence = ["cubic", "cubic", "laves", "laves", "diamond", "diamond", "a15", "a15", "cubic", "cubic", "cubic"]
+    nx, ny, nz = 10, 1, 2
+    sequence = ["cubic", "a15", "cubic", "bcc", "cubic", "laves", "cubic", "fcc", "cubic", "diamond", "cubic"]
+    sequence = [x for x in sequence for _ in range(3)] # duplicate entries to pause on each one
 
     renWinToImage = vtk.vtkWindowToImageFilter()
     renWinToImage.SetInput(renWin)
@@ -275,7 +300,7 @@ def animateParquetDeformation():
     pngWriter.SetInputConnection(renWinToImage.GetOutputPort())
 
     # Collect points by stacking unit cells along the z-axis
-    num_frames = 200
+    num_frames = 600
     for iFrame in range(0, num_frames):
         u_center = len(sequence[:-2]) * iFrame / num_frames
         internal_pts = [] # ones we will display the Voronoi cell for
@@ -287,25 +312,25 @@ def animateParquetDeformation():
         # iterate from the center slice in both directions
         for d in [1, -1]:
             pos = [0, 0, 0]
-            for iz in range(0, nz):
-                u = u_center + d * iz / nz
+            for i in range(0, nx):
+                u = u_center + d * i / nx
                 u_pre = math.floor(u)
                 u_post = u_pre + 1
                 u_frac = u - u_pre
                 cell1 = getUnitCell(sequence[u_pre])
                 cell2 = getUnitCell(sequence[u_post])
                 unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
-                if iz == 0 and d == 1:
+                if i == 0 and d == 1:
                     addUnitCube(unit_cube_assembly, size)
                     for iVert, internal_pt in enumerate(unit_cell_pts):
                         addSphere(unit_cube_assembly, internal_pt, 0.07, temporallyConsistentRandomColor(iVert, colors))
-                if iz > 0 or d == 1:
-                    if iz < nz - 1:
-                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts, coords)
+                if i > 0 or d == 1:
+                    if i < nx - 1:
+                        addParquetSlice(unit_cell_pts, size, pos, ny, nz, internal_pts, external_pts, coords)
                     else:
                         # add hidden slice to avoid boundary effects
-                        addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts, coords)
-                pos[2] += d * size[2]
+                        addParquetSlice(unit_cell_pts, size, pos, ny, nz, external_pts, external_pts, coords)
+                pos[0] += d * size[0]
 
         # Run Voronoi over all the points
         v = scipy.spatial.Voronoi(internal_pts + external_pts)
@@ -319,14 +344,14 @@ def animateParquetDeformation():
             faces = scipy.spatial.ConvexHull(verts).simplices
             pt_coords = coords[iVert]
             addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False)
-            if iVert == 6:
-                # Add a rotating wireframe copy
-                addSurface(unit_cube_assembly, verts, faces, (0, 0, 0), opacity=1, wireframe=True)
-                unit_cube_assembly.GetUserTransform().Translate(-internal_pts[iVert][0], -internal_pts[iVert][1], -internal_pts[iVert][2])
+            if iVert in [0,3]:
+                # Add a wireframe copy
+                addSurface(unit_cube_assembly, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=True)
 
         # Add the unit cube assembly to the scene
-        unit_cube_assembly.GetUserTransform().RotateY(400 * iFrame / num_frames)
-        unit_cube_assembly.GetUserTransform().Translate(-3, 0, 0)
+        unit_cube_assembly.GetUserTransform().Translate(-0.5, -0.5, -0.5)
+        unit_cube_assembly.GetUserTransform().RotateY(200 * iFrame / num_frames)
+        unit_cube_assembly.GetUserTransform().Translate(0, 0, -3)
         ren.AddActor(unit_cube_assembly)
 
         # Render
@@ -339,6 +364,8 @@ def animateParquetDeformation():
             print("\nPress 'q' to animate")
             first = False
             iren.Start()
+            print("Camera position:", ren.GetActiveCamera().GetPosition())
+            print("Focal point:", ren.GetActiveCamera().GetFocalPoint())
             print("Animating...")
         renWin.Render()
         pngWriter.SetFileName(f"render_{iFrame:05d}.png")
