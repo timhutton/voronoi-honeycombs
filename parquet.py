@@ -56,8 +56,16 @@ def makePolyData(verts, faces):
     return pd
 
 
-def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
-    """Add the specified surface to the renderer scene."""
+def AddActorOrPart(actor, target):
+    """Adds the actor to the renderer or assembly."""
+    try:
+        target.AddActor(actor)
+    except:
+        target.AddPart(actor)
+
+
+def addSurface(target, verts, faces, color, opacity=1, wireframe=False):
+    """Add the specified surface to the target."""
     surface = makePolyData(verts, faces)
     mapper = vtk.vtkPolyDataMapper()
     if wireframe:
@@ -67,7 +75,7 @@ def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
         pdn.SplittingOff()
         edge_filter = vtk.vtkFeatureEdges()
         edge_filter.FeatureEdgesOn()
-        edge_filter.SetFeatureAngle(0.1)
+        edge_filter.SetFeatureAngle(1)
         edge_filter.SetInputConnection(pdn.GetOutputPort())
         edge_filter.Update()
         surface.DeepCopy(edge_filter.GetOutput())
@@ -78,12 +86,12 @@ def addSurface(renderer, verts, faces, color, opacity=1, wireframe=False):
     actor.SetMapper(mapper)
     actor.GetProperty().SetColor(*color)
     actor.GetProperty().SetOpacity(opacity)
-    renderer.AddActor(actor)
+    AddActorOrPart(actor, target)
     return actor
 
 
-def addSphere(renderer, pos, radius, color):
-    """Add a sphere to the renderer scene."""
+def addSphere(target, pos, radius, color):
+    """Add a sphere to the target."""
     sphere = vtk.vtkSphereSource()
     sphere.SetRadius(radius)
     mapper = vtk.vtkPolyDataMapper()
@@ -92,11 +100,11 @@ def addSphere(renderer, pos, radius, color):
     actor.SetMapper(mapper)
     actor.SetPosition(*pos)
     actor.GetProperty().SetColor(*color)
-    renderer.AddActor(actor)
+    AddActorOrPart(actor, target)
 
 
-def addUnitCube(renderer, size):
-    """Add the unit cube to the renderer scene."""
+def addUnitCube(target, size):
+    """Add the unit cube to the target."""
     cube = vtk.vtkCubeSource()
     cube.SetBounds(0, size[0], 0, size[1], 0, size[2])
     mapper = vtk.vtkPolyDataMapper()
@@ -105,11 +113,11 @@ def addUnitCube(renderer, size):
     actor.SetMapper(mapper)
     actor.GetProperty().SetColor(0, 0, 0)
     actor.GetProperty().SetRepresentationToWireframe()
-    renderer.AddActor(actor)
+    AddActorOrPart(actor, target)
 
 
-def addLabel(pos, text, renderer, color, scale):
-    """Add a text label to the renderer scene."""
+def addLabel(pos, text, target, color, scale):
+    """Add a text label to the target."""
     vector_text = vtk.vtkVectorText()
     vector_text.SetText(text);
     mapper = vtk.vtkPolyDataMapper()
@@ -119,7 +127,7 @@ def addLabel(pos, text, renderer, color, scale):
     actor.GetProperty().SetColor(*color)
     actor.SetScale(scale)
     actor.SetPosition(*pos)
-    renderer.AddActor(actor)
+    AddActorOrPart(actor, target)
 
 
 def lerp(a_vals, b_vals, u):
@@ -258,7 +266,7 @@ def animateParquetDeformation():
     ren.AddLight(light)
     first = True
 
-    nx, ny, nz = 2, 1, 10
+    nx, ny, nz = 2, 1, 3 #  10
     sequence = ["cubic", "cubic", "laves", "laves", "diamond", "diamond", "a15", "a15", "cubic", "cubic", "cubic"]
 
     renWinToImage = vtk.vtkWindowToImageFilter()
@@ -273,6 +281,9 @@ def animateParquetDeformation():
         internal_pts = [] # ones we will display the Voronoi cell for
         external_pts = [] # ones with possible boundary effects that we need to compute Voronoi but don't display
         coords = {}
+        unit_cube_assembly = vtk.vtkAssembly()
+        unit_cube_assembly.SetUserTransform(vtk.vtkTransform())
+        unit_cube_assembly.GetUserTransform().PostMultiply()
         # iterate from the center slice in both directions
         for d in [1, -1]:
             pos = [0, 0, 0]
@@ -284,6 +295,10 @@ def animateParquetDeformation():
                 cell1 = getUnitCell(sequence[u_pre])
                 cell2 = getUnitCell(sequence[u_post])
                 unit_cell_pts, size = lerpUnitCell(cell1, cell2, u_frac)
+                if iz == 0 and d == 1:
+                    addUnitCube(unit_cube_assembly, size)
+                    for iVert, internal_pt in enumerate(unit_cell_pts):
+                        addSphere(unit_cube_assembly, internal_pt, 0.07, temporallyConsistentRandomColor(iVert, colors))
                 if iz > 0 or d == 1:
                     if iz < nz - 1:
                         addParquetSlice(unit_cell_pts, size, pos, nx, ny, internal_pts, external_pts, coords)
@@ -291,8 +306,6 @@ def animateParquetDeformation():
                         # add hidden slice to avoid boundary effects
                         addParquetSlice(unit_cell_pts, size, pos, nx, ny, external_pts, external_pts, coords)
                 pos[2] += d * size[2]
-        for iVert, internal_pt in enumerate(internal_pts):
-            addSphere(ren, internal_pt, 0.05, temporallyConsistentRandomColor(iVert, colors))
 
         # Run Voronoi over all the points
         v = scipy.spatial.Voronoi(internal_pts + external_pts)
@@ -306,11 +319,15 @@ def animateParquetDeformation():
             faces = scipy.spatial.ConvexHull(verts).simplices
             pt_coords = coords[iVert]
             addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False)
-            if iVert == 0:
+            if iVert == 6:
                 # Add a rotating wireframe copy
-                theta = 10 * iFrame / num_frames
-                verts2 = [(x * math.cos(theta) - z * math.sin(theta) - 2, y, x * math.sin(theta) + z * math.cos(theta)) for x,y,z in verts]
-                addSurface(ren, verts2, faces, (0, 0, 0), opacity=1, wireframe=True)
+                addSurface(unit_cube_assembly, verts, faces, (0, 0, 0), opacity=1, wireframe=True)
+                unit_cube_assembly.GetUserTransform().Translate(-internal_pts[iVert][0], -internal_pts[iVert][1], -internal_pts[iVert][2])
+
+        # Add the unit cube assembly to the scene
+        unit_cube_assembly.GetUserTransform().RotateY(400 * iFrame / num_frames)
+        unit_cube_assembly.GetUserTransform().Translate(-3, 0, 0)
+        ren.AddActor(unit_cube_assembly)
 
         # Render
         renWin.Render()
