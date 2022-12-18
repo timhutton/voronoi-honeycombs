@@ -68,7 +68,7 @@ def addSurface(target, verts, faces, color, opacity=1, wireframe=False):
     """Add the specified surface to the target."""
     surface = makePolyData(verts, faces)
     if wireframe:
-        radius = 0.025
+        radius = 0.02
         mapper = vtk.vtkPolyDataMapper()
         pdn = vtk.vtkPolyDataNormals() # ensure faces are oriented consistently
         pdn.SetInputData(surface)
@@ -179,15 +179,15 @@ def addLabel(target, camera, pos, text, color, scale):
     AddActorOrPart(actor, target)
 
 
-def addCaption(target, text, color, scale):
+def addCaption(target, text, size, color):
     """Add a text caption to the target."""
     actor = vtk.vtkTextActor()
     actor.SetInput(text);
     actor.GetTextProperty().SetFontFamilyToArial()
     actor.GetTextProperty().BoldOn();
-    actor.GetTextProperty().SetFontSize(30);
+    actor.GetTextProperty().SetFontSize(size);
     actor.GetTextProperty().ShadowOff();
-    actor.GetTextProperty().SetColor(0.1,0.08,0.07);
+    actor.GetTextProperty().SetColor(*color);
     actor.SetDisplayPosition(20, 20);
     AddActorOrPart(actor, target)
 
@@ -207,7 +207,7 @@ def lerpUnitCell(a, b, u):
 def temporallyConsistentRandomColor(i, colors):
     """Return a random RGB [0,1] color, and remember previous answers."""
     if not i in colors:
-        colors[i] = random.random(), random.random(), random.random()
+        colors[i] = random.uniform(0.2, 1.0), random.uniform(0.2, 1.0), random.uniform(0.2, 1.0)
     return colors[i]
 
 
@@ -219,9 +219,9 @@ def getUnitCell(label):
     """
     unit_cells = {
         "cubic":   { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
-        "bcc":     { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "BCC (truncated octahedra)" },
-        "fcc":     { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "FCC (rhombic dodecahedra)" },
-        "diamond": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond cubic (triakis truncated tetrahedra)" },
+        "bcc":     { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "Body-Centered Cubic (truncated octahedra)" },
+        "fcc":     { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "Face-Centered Cubic (rhombic dodecahedra)" },
+        "diamond": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond Cubic (triakis truncated tetrahedra)" },
         "a15":     { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "A15 crystal (Weaire-Phelan)" },
         "laves":   { "unit_cell": [(0,0,0),(1,3,0),(2,3,1),(3,0,1),(0,1,3),(1,2,3),(2,2,2),(3,1,2)], "scale": 2, "size": [2,2,2], "name": "Laves graph (triamond)" } }
     return unit_cells[label]
@@ -312,19 +312,17 @@ def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
     # --- Options ---
-    saveFrames = False
+    saveFrames = True
     if saveFrames:
         window_size = 1920, 1080
-        num_frames = 800
+        num_frames = 1100
         nx, ny, nz = 10, 1, 2
     else:
         window_size = 720, 480
         num_frames = 400
         nx, ny, nz = 3, 1, 2
-    rotationSpeed = 300
+    rotationSpeed = 0.4  # degrees per frame
     background_color = 0.95, 0.9, 0.85
-    label_color = 0, 0, 0
-    label_scale = 0.5
 
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     ren.GetActiveCamera().SetPosition(-10, 8.1, -7.9)
@@ -334,10 +332,10 @@ def animateParquetDeformation():
     lightkit.AddLightsToRenderer(ren)
 
     first = True
-    colors = {}
+    colors = {0: (0.8752172152383135, 0.2615021005942649, 0.611173280168092), 1: (0.7966811301789003, 0.3754010863173147, 0.4518334816544618), 2: (0.664317955782218, 0.8326701972106265, 0.3072957856981289), 3: (0.22533817620441488, 0.7356735975766437, 0.8096820965563298), 4: (0.2151490003124047, 0.7121620705263987, 0.20058557434741006), 5: (0.9168705776148747, 0.23314661400846426, 0.48681660349389544), 6: (0.5449334486893105, 0.9776761514153769, 0.3974121889840828), 7: (0.9480297472594772, 0.6545335256816154, 0.4130277276893485)}
 
-    sequence = ["cubic", "cubic", "a15", "cubic", "bcc", "cubic", "laves", "cubic", "fcc", "cubic", "diamond", "cubic", "cubic"]
-    sequence = [x for x in sequence for _ in range(4)] # duplicate entries to pause on each one
+    sequence = ["cubic", "cubic", "a15", "a15", "cubic", "bcc", "cubic", "laves", "laves", "laves", "cubic", "fcc", "cubic", "diamond", "diamond", "cubic", "cubic"]
+    sequence = [x for x in sequence for _ in range(5)] # duplicate entries to pause on each one
 
     if saveFrames:
         renWinToImage = vtk.vtkWindowToImageFilter()
@@ -371,7 +369,7 @@ def animateParquetDeformation():
                         addSphere(unit_cube_assembly, internal_pt, 0.07, temporallyConsistentRandomColor(iVert, colors))
                         addLine(unit_cube_assembly, internal_pt, (internal_pt[0], 0, internal_pt[2]), (0,0,0))
                     if cell1 == cell2:
-                        addCaption(ren, cell1["name"], (0,0,0), 0.5)
+                        addCaption(ren, cell1["name"], 36, (0,0,0.3))
                 if i > 0 or d == 1:
                     if i < nx - 1:
                         addParquetSlice(unit_cell_pts, size, pos, ny, nz, internal_pts, external_pts, coords)
@@ -398,8 +396,8 @@ def animateParquetDeformation():
 
         # Add the unit cube assembly to the scene
         unit_cube_assembly.GetUserTransform().Translate(-0.5, -0.5, -0.5)
-        unit_cube_assembly.GetUserTransform().RotateY(rotationSpeed * iFrame / num_frames)
-        unit_cube_assembly.GetUserTransform().Translate(0, 0, -3)
+        unit_cube_assembly.GetUserTransform().RotateY(rotationSpeed * iFrame)
+        unit_cube_assembly.GetUserTransform().Translate(0, 0, -4)
         ren.AddActor(unit_cube_assembly)
 
         # Render
@@ -414,6 +412,7 @@ def animateParquetDeformation():
             iren.Start()
             print("Camera position:", ren.GetActiveCamera().GetPosition())
             print("Focal point:", ren.GetActiveCamera().GetFocalPoint())
+            print("Colors:", {i:colors[i] for i in range(8)})
             print("Animating...")
         renWin.Render()
         if saveFrames:
