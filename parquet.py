@@ -120,11 +120,33 @@ def addSphere(target, pos, radius, color):
     """Add a sphere to the target."""
     sphere = vtk.vtkSphereSource()
     sphere.SetRadius(radius)
+    sphere.SetThetaResolution(20)
+    sphere.SetPhiResolution(20)
     mapper = vtk.vtkPolyDataMapper()
     mapper.SetInputConnection(sphere.GetOutputPort())
     actor = vtk.vtkActor()
     actor.SetMapper(mapper)
     actor.SetPosition(*pos)
+    actor.GetProperty().SetColor(*color)
+    AddActorOrPart(actor, target)
+
+
+def addLine(target, a, b, color):
+    """Add a line to the target."""
+    pd = vtk.vtkPolyData()
+    pts = vtk.vtkPoints()
+    for pt in [a,b]:
+        pts.InsertNextPoint(*pt)
+    cells = vtk.vtkCellArray()
+    cells.InsertNextCell(2)
+    cells.InsertCellPoint(0)
+    cells.InsertCellPoint(1)
+    pd.SetPoints(pts)
+    pd.SetLines(cells)
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputData(pd)
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
     actor.GetProperty().SetColor(*color)
     AddActorOrPart(actor, target)
 
@@ -324,6 +346,7 @@ def animateParquetDeformation():
                     addUnitCube(unit_cube_assembly, size)
                     for iVert, internal_pt in enumerate(unit_cell_pts):
                         addSphere(unit_cube_assembly, internal_pt, 0.07, temporallyConsistentRandomColor(iVert, colors))
+                        addLine(unit_cube_assembly, internal_pt, (internal_pt[0], 0, internal_pt[2]), (0,0,0))
                 if i > 0 or d == 1:
                     if i < nx - 1:
                         addParquetSlice(unit_cell_pts, size, pos, ny, nz, internal_pts, external_pts, coords)
