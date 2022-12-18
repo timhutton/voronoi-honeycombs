@@ -297,32 +297,40 @@ def addParquetSlice(unit_cell_pts, size, pos, ny, nz, internal_pts, external_pts
 def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
+    # --- Options ---
     #window_size = 720, 480
     window_size = 1920, 1080
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
     label_color = 0, 0, 0
     label_scale = 0.5
-    colors = {}
+    saveFrames = True
+    num_frames = 800
+    rotationSpeed = 300
 
     ren.GetActiveCamera().SetPosition(-10, 8.1, -7.9)
     ren.GetActiveCamera().SetFocalPoint(-0.4, 0.2, 0.7)
     ren.GetActiveCamera().SetViewUp(0, 1, 0)
     lightkit = vtk.vtkLightKit()
     lightkit.AddLightsToRenderer(ren)
-    first = True
 
-    nx, ny, nz = 10, 1, 2
-    sequence = ["cubic", "a15", "cubic", "bcc", "cubic", "laves", "cubic", "fcc", "cubic", "diamond", "cubic"]
+    first = True
+    colors = {}
+
+    if saveFrames:
+        nx, ny, nz = 10, 1, 2
+    else:
+        nx, ny, nz = 3, 1, 2
+    sequence = ["cubic", "cubic", "a15", "cubic", "bcc", "cubic", "laves", "cubic", "fcc", "cubic", "diamond", "cubic"]
     sequence = [x for x in sequence for _ in range(3)] # duplicate entries to pause on each one
 
-    renWinToImage = vtk.vtkWindowToImageFilter()
-    renWinToImage.SetInput(renWin)
-    pngWriter = vtk.vtkPNGWriter()
-    pngWriter.SetInputConnection(renWinToImage.GetOutputPort())
+    if saveFrames:
+        renWinToImage = vtk.vtkWindowToImageFilter()
+        renWinToImage.SetInput(renWin)
+        pngWriter = vtk.vtkPNGWriter()
+        pngWriter.SetInputConnection(renWinToImage.GetOutputPort())
 
     # Collect points by stacking unit cells along the z-axis
-    num_frames = 600
     for iFrame in range(0, num_frames):
         u_center = len(sequence[:-2]) * iFrame / num_frames
         internal_pts = [] # ones we will display the Voronoi cell for
@@ -367,13 +375,13 @@ def animateParquetDeformation():
             faces = scipy.spatial.ConvexHull(verts).simplices
             pt_coords = coords[iVert]
             addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False)
-            if iVert in [0,3]:
+            if iVert in [1,2]:
                 # Add a wireframe copy
                 addSurface(unit_cube_assembly, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=True)
 
         # Add the unit cube assembly to the scene
         unit_cube_assembly.GetUserTransform().Translate(-0.5, -0.5, -0.5)
-        unit_cube_assembly.GetUserTransform().RotateY(200 * iFrame / num_frames)
+        unit_cube_assembly.GetUserTransform().RotateY(rotationSpeed * iFrame / num_frames)
         unit_cube_assembly.GetUserTransform().Translate(0, 0, -3)
         ren.AddActor(unit_cube_assembly)
 
@@ -391,11 +399,14 @@ def animateParquetDeformation():
             print("Focal point:", ren.GetActiveCamera().GetFocalPoint())
             print("Animating...")
         renWin.Render()
-        pngWriter.SetFileName(f"render_{iFrame:05d}.png")
-        renWinToImage.Modified()
-        pngWriter.Write()
+        if saveFrames:
+            pngWriter.SetFileName(f"render_{iFrame:05d}.png")
+            renWinToImage.Modified()
+            pngWriter.Write()
         ren.RemoveAllViewProps()
 
+    if saveFrames:
+        print("FFMPEG command: ffmpeg -r 20 -i render_%05d.png -movflags faststart -c:v libx264 -profile:v high -bf 2 -g 30 -crf 18 -pix_fmt yuv420p -vb 10M video.mp4")
 
 if __name__ == "__main__":
 
