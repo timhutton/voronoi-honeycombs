@@ -53,6 +53,15 @@ def makePolyData(verts, faces):
             cells.InsertCellPoint(v)
     pd.SetPoints(pts)
     pd.SetPolys(cells)
+    pdn = vtk.vtkPolyDataNormals() # ensure faces are oriented consistently
+    pdn.SetInputData(pd)
+    pdn.ConsistencyOn()
+    pdn.SplittingOff()
+    pdn.AutoOrientNormalsOn()
+    pdn.Update()
+    pd.DeepCopy(pdn.GetOutput())
+    pd.GetCellData().Initialize()
+    pd.GetPointData().Initialize()
     return pd
 
 
@@ -70,14 +79,10 @@ def addSurface(target, verts, faces, color, opacity=1, wireframe=False):
     if wireframe:
         radius = 0.02
         mapper = vtk.vtkPolyDataMapper()
-        pdn = vtk.vtkPolyDataNormals() # ensure faces are oriented consistently
-        pdn.SetInputData(surface)
-        pdn.ConsistencyOn()
-        pdn.SplittingOff()
         edge_filter = vtk.vtkFeatureEdges()
         edge_filter.FeatureEdgesOn()
         edge_filter.SetFeatureAngle(1)
-        edge_filter.SetInputConnection(pdn.GetOutputPort())
+        edge_filter.SetInputData(surface)
         edge_filter.Update()
         surface.DeepCopy(edge_filter.GetOutput())
         surface.GetCellData().Initialize()
@@ -225,6 +230,51 @@ def getUnitCell(label):
         "a15":     { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "A15 crystal (Weaire-Phelan)" },
         "laves":   { "unit_cell": [(0,0,0),(1,3,0),(2,3,1),(3,0,1),(0,1,3),(1,2,3),(2,2,2),(3,1,2)], "scale": 2, "size": [2,2,2], "name": "Laves graph (triamond)" } }
     return unit_cells[label]
+
+
+def makeHoneycomb(honeycomb_type="laves"):
+    """Construct a honeycombs."""
+
+    window_size = 800, 600
+    background_color = 0.95, 0.9, 0.85
+    ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
+    colors = {}
+
+    # Make a list of 3D points
+    unit_cell = getUnitCell(honeycomb_type)
+    nx, ny, nz = (1, 1, 1)
+    genpt = lambda p, offset: [p[i] / unit_cell["scale"] + offset[i]*unit_cell["size"][i] for i in range(3)]
+    internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
+    internal_pts = [genpt(p, offset) for p in unit_cell["unit_cell"] for offset in internal_offsets]
+    all_offsets = list(itertools.product(range(-1, nx + 1), range(-1, ny + 1), range(-1, nz + 1)))
+    external_pts = [genpt(p, offset) for p in unit_cell["unit_cell"] for offset in all_offsets if not genpt(p, offset) in internal_pts]
+
+    # Compute a Voronoi structure from the list of 3D points
+    v = scipy.spatial.Voronoi(internal_pts + external_pts)
+
+    # Add the Voronoi cells to the scene
+    for iVert, reg_num in enumerate(v.point_region[:len(internal_pts)]): # only interested in the internal cells, to avoid boundary effects
+        indices = v.regions[reg_num]
+        if -1 in indices: # external region including point at infinity
+            continue
+        verts = v.vertices[indices]
+        faces = scipy.spatial.ConvexHull(verts).simplices
+        addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False)
+        pd = makePolyData(verts, faces)
+        obj = vtk.vtkOBJWriter()
+        filename = f"{honeycomb_type}_{iVert}.obj"
+        obj.SetFileName(filename)
+        obj.SetInputData(pd)
+        obj.Write()
+        print(f"Wrote {filename}")
+
+    print("Controls:")
+    print("  mouse left drag: rotate the scene")
+    print("  mouse right drag up/down, or mouse wheel: zoom in/out")
+    print("  shift + mouse left drag: pan")
+    ren.GetActiveCamera().SetPosition(-7.5, 5.5, -20.5)
+    ren.ResetCamera()
+    iren.Start()
 
 
 def animateTransitions(a="cubic", b="laves", showUnitCell=False):
@@ -426,5 +476,6 @@ def animateParquetDeformation():
 
 if __name__ == "__main__":
 
+    #makeHoneycomb(honeycomb_type="laves")
     #animateTransitions(a="cubic", b="laves", showUnitCell=False)
     animateParquetDeformation()
