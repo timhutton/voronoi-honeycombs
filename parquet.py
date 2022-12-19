@@ -222,13 +222,22 @@ def getUnitCell(label):
            scale     : Factor to divide by to obtain the points we want
            size      : Dimensions of the resulting unit cell after dividing points by scale
     """
+    a = 1
+    b = 2 - math.sqrt(3)
+    c = a + b
+    d = a - b
+    e = -b
+    f = 0.56 # TODO: work out what this is
+    g = f * 2
     unit_cells = {
         "cubic":   { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
         "bcc":     { "unit_cell": [(0,0,0),(0,2,0),(2,2,0),(2,0,0),(1,1,1),(1,3,1),(3,3,1),(3,1,1)], "scale": 2, "size": [2,2,1], "name": "Body-Centered Cubic (truncated octahedra)" },
         "fcc":     { "unit_cell": [(0,0,0),(0,1,1),(1,1,0),(1,0,1),(0,0,2),(0,1,3),(1,1,2),(1,0,3)], "scale": 1, "size": [2,2,4], "name": "Face-Centered Cubic (rhombic dodecahedra)" },
         "diamond": { "unit_cell": [(0,0,0),(1,3,1),(2,2,0),(3,1,1),(1,1,3),(0,2,2),(3,3,3),(2,0,2)], "scale": 2, "size": [2,2,2], "name": "Diamond Cubic (triakis truncated tetrahedra)" },
         "a15":     { "unit_cell": [(0,0,0),(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,2,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "A15 crystal (Weaire-Phelan)" },
-        "laves":   { "unit_cell": [(0,0,0),(1,3,0),(2,3,1),(3,0,1),(0,1,3),(1,2,3),(2,2,2),(3,1,2)], "scale": 2, "size": [2,2,2], "name": "Laves graph (triamond)" } }
+        "laves":   { "unit_cell": [(0,0,0),(1,3,0),(2,3,1),(3,0,1),(0,1,3),(1,2,3),(2,2,2),(3,1,2)], "scale": 2, "size": [2,2,2], "name": "Laves graph (triamond)" },
+        "bh":      { "unit_cell": [(0,0,0),(b,a,0),(c,d,0),(a,e,0),(b,e,f),(0,d,f),(a,a,f),(c,0,f)], "scale": 1, "size": [2,2,g], "name": "Bisymmetric hendecahedron (penta-graphene?)" },
+    }
     return unit_cells[label]
 
 
@@ -238,11 +247,13 @@ def makeHoneycomb(honeycomb_type="laves"):
     window_size = 800, 600
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
+    lightkit = vtk.vtkLightKit()
+    lightkit.AddLightsToRenderer(ren)
     colors = {}
 
     # Make a list of 3D points
     unit_cell = getUnitCell(honeycomb_type)
-    nx, ny, nz = (1, 1, 1)
+    nx, ny, nz = (2, 2, 2)
     genpt = lambda p, offset: [p[i] / unit_cell["scale"] + offset[i]*unit_cell["size"][i] for i in range(3)]
     internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
     internal_pts = [genpt(p, offset) for p in unit_cell["unit_cell"] for offset in internal_offsets]
@@ -273,11 +284,12 @@ def makeHoneycomb(honeycomb_type="laves"):
     print("  mouse right drag up/down, or mouse wheel: zoom in/out")
     print("  shift + mouse left drag: pan")
     ren.GetActiveCamera().SetPosition(-7.5, 5.5, -20.5)
+    ren.GetActiveCamera().SetViewUp(0,1,0)
     ren.ResetCamera()
     iren.Start()
 
 
-def animateTransitions(a="cubic", b="laves", showUnitCell=False):
+def animateTransitions(a="cubic", b="laves", showUnitCell=False, wireframe=True):
     """Interactive display of animated transition between two honeycombs."""
 
     window_size = 800, 600
@@ -312,7 +324,7 @@ def animateTransitions(a="cubic", b="laves", showUnitCell=False):
                 continue
             verts = v.vertices[indices]
             faces = scipy.spatial.ConvexHull(verts).simplices
-            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=showUnitCell)
+            addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=wireframe)
             if showUnitCell:
                 addSphere(ren, internal_pts[iVert], 0.05, temporallyConsistentRandomColor(iVert, colors))
                 addUnitCube(ren, size)
@@ -477,5 +489,5 @@ def animateParquetDeformation():
 if __name__ == "__main__":
 
     #makeHoneycomb(honeycomb_type="laves")
-    #animateTransitions(a="cubic", b="laves", showUnitCell=False)
+    #animateTransitions(a="cubic", b="laves", showUnitCell=True, wireframe=True)
     animateParquetDeformation()
