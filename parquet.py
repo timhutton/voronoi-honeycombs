@@ -77,7 +77,7 @@ def addSurface(target, verts, faces, color, opacity=1, wireframe=False):
     """Add the specified surface to the target."""
     surface = makePolyData(verts, faces)
     if wireframe:
-        radius = 0.02
+        radius = 0.01
         mapper = vtk.vtkPolyDataMapper()
         edge_filter = vtk.vtkFeatureEdges()
         edge_filter.FeatureEdgesOn()
@@ -241,6 +241,120 @@ def getUnitCell(label):
     return unit_cells[label]
 
 
+def checkBHCenters():
+    window_size = 800, 800
+    background_color = 0.95, 0.9, 0.85
+    ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
+    lightkit = vtk.vtkLightKit()
+    lightkit.AddLightsToRenderer(ren)
+    colors = {}
+
+    num_frames = 1
+    u_values = [i/num_frames for i in range(num_frames)]
+    pauses = []
+
+    for iFrame, u in enumerate(u_values):
+        if True:
+            # first try making copies of the original shape, to check we have the copies correctly places
+            obj = vtk.vtkOBJReader()
+            obj.SetFileName("C:\\Tim\\parquet3d\\bisymmetric_hendecahedron.obj")
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputConnection(obj.GetOutputPort())
+            actor = vtk.vtkActor()
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetRepresentationToWireframe()
+            ren.AddActor(actor)
+
+        if True:
+            # Make a list of 3D points
+            c = 0.3862935 #+ u * 0.000001
+            print(c)
+            layer_sep = 2-c
+            centers = [(0,c,0),(1+c,3,0),(4,2-c,0),(3-c,-1,0)]
+            v = [(4,-4,0),(4,4,0)]
+            # extend by translated copies in XY plane
+            centers.extend([(x+i*v[0][0],y+i*v[0][1],z+i*v[0][2]) for x,y,z in centers for i in [-1,1]])
+            centers.extend([(x+i*v[1][0],y+i*v[1][1],z+i*v[1][2]) for x,y,z in centers for i in [-1,1]])
+            # copies two layers up
+            centers.extend([(x,y,z+layer_sep*2) for x,y,z in centers])
+            # copies in other layers
+            n1 = len(centers)
+            centers.extend([(-(y+1),x-1,z+dz) for x,y,z in centers for dz in [layer_sep,-layer_sep]])
+
+        if True:
+            # Compute a Voronoi structure from the list of 3D points
+            v = scipy.spatial.Voronoi(centers)
+
+            # Add the Voronoi cells to the scene
+            for iVert, reg_num in enumerate(v.point_region):
+                x,y,z = centers[iVert]
+                if x < 0 or x > 1 or y < -1 or y > 1 or z < 0 or z > 1:
+                    continue
+                addSphere(ren, (x,y,z), 0.05, temporallyConsistentRandomColor(iVert, colors))
+                indices = v.regions[reg_num]
+                if -1 in indices: # external region including point at infinity
+                    continue
+                verts = v.vertices[indices]
+                faces = scipy.spatial.ConvexHull(verts).simplices
+                addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=True)
+
+        axes = vtk.vtkAxesActor()
+        axes.GetXAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+        axes.GetXAxisCaptionActor2D().GetCaptionTextProperty().SetFontSize(22)
+        axes.GetYAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+        axes.GetYAxisCaptionActor2D().GetCaptionTextProperty().SetFontSize(22)
+        axes.GetZAxisCaptionActor2D().GetTextActor().SetTextScaleModeToNone()
+        axes.GetZAxisCaptionActor2D().GetCaptionTextProperty().SetFontSize(22)
+        t =  vtk.vtkTransform()
+        vp = (-0.939, -1.0, 0.0)
+        t.Translate(*vp)
+        axes.SetUserTransform(t)
+        #ren.AddActor(axes)
+
+        if iFrame == 0:
+            print("Controls:")
+            print("  mouse left drag: rotate the scene")
+            print("  mouse right drag up/down, or mouse wheel: zoom in/out")
+            print("  shift + mouse left drag: pan")
+            print("\nPress 'q' to start the animation")
+            ren.GetActiveCamera().SetPosition(-3,-3,1)
+            #ren.GetActiveCamera().SetFocalPoint(*vp)
+            ren.GetActiveCamera().SetViewUp(0,0,1)
+            ren.ResetCamera()
+            #ren.GetActiveCamera().Zoom(1000)
+            iren.Start()
+            ren.RemoveAllViewProps()
+            print("Animating...")
+        elif iFrame in pauses:
+            print("Press 'q' to continue")
+            renWin.Render()
+            iren.Start()
+            ren.RemoveAllViewProps()
+            print("Animating...")
+        else:
+            renWin.Render()
+            ren.RemoveAllViewProps()
+
+    exit()
+
+def getCentroid(polydata):
+    massP = vtk.vtkMultiObjectMassProperties()
+    massP.SetInputData(polydata)
+    massP.Update()
+    numObjects = massP.GetNumberOfObjects()
+    validArray = massP.GetOutput().GetFieldData().GetArray("ObjectValidity")
+    areaArray = massP.GetOutput().GetFieldData().GetArray("ObjectAreas")
+    volArray = massP.GetOutput().GetFieldData().GetArray("ObjectVolumes")
+    centroidArray = massP.GetOutput().GetFieldData().GetArray("ObjectCentroids")
+    print("Object ID, Valid, Area, Volume, Centroid")
+    for i in range(0, numObjects):
+        valid = validArray.GetTuple1(i)
+        area = areaArray.GetTuple1(i)
+        vol = volArray.GetTuple1(i)
+        centroid = centroidArray.GetTuple3(i)
+        print(i, valid, area, vol, centroid)
+
+
 def makeHoneycomb(honeycomb_type="laves"):
     """Construct a honeycombs."""
 
@@ -253,7 +367,7 @@ def makeHoneycomb(honeycomb_type="laves"):
 
     # Make a list of 3D points
     unit_cell = getUnitCell(honeycomb_type)
-    nx, ny, nz = (2, 2, 2)
+    nx, ny, nz = (1,1,1)
     genpt = lambda p, offset: [p[i] / unit_cell["scale"] + offset[i]*unit_cell["size"][i] for i in range(3)]
     internal_offsets = list(itertools.product(range(nx), range(ny), range(nz)))
     internal_pts = [genpt(p, offset) for p in unit_cell["unit_cell"] for offset in internal_offsets]
@@ -488,6 +602,7 @@ def animateParquetDeformation():
 
 if __name__ == "__main__":
 
-    #makeHoneycomb(honeycomb_type="laves")
+    checkBHCenters()
+    makeHoneycomb(honeycomb_type="bh")
     #animateTransitions(a="cubic", b="laves", showUnitCell=True, wireframe=True)
-    animateParquetDeformation()
+    #animateParquetDeformation()
