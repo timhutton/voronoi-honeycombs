@@ -374,15 +374,18 @@ def animateParquetDeformation():
     """Interactive display of a parquet deformation between different honeycombs."""
 
     # --- Options ---
-    saveFrames = True
-    if saveFrames:
+    saveFrames = False
+    fullResolution = False
+    if fullResolution:
         window_size = 1920, 1080
         num_frames = 1100
         nx, ny, nz = 10, 1, 2
+        parquet = True
     else:
-        window_size = 720, 480
+        window_size = 853, 480
         num_frames = 400
-        nx, ny, nz = 3, 1, 2
+        nx, ny, nz = 2, 1, 2
+        parquet = False
     rotationSpeed = 0.4  # degrees per frame
     background_color = 0.95, 0.9, 0.85
 
@@ -396,7 +399,7 @@ def animateParquetDeformation():
     first = True
     colors = {0: (0.8752172152383135, 0.2615021005942649, 0.611173280168092), 1: (0.7966811301789003, 0.3754010863173147, 0.4518334816544618), 2: (0.664317955782218, 0.8326701972106265, 0.3072957856981289), 3: (0.22533817620441488, 0.7356735975766437, 0.8096820965563298), 4: (0.2151490003124047, 0.7121620705263987, 0.20058557434741006), 5: (0.9168705776148747, 0.23314661400846426, 0.48681660349389544), 6: (0.5449334486893105, 0.9776761514153769, 0.3974121889840828), 7: (0.9480297472594772, 0.6545335256816154, 0.4130277276893485)}
 
-    sequence = ["cubic", "cubic", "a15", "a15", "cubic", "bcc", "cubic", "laves", "laves", "laves", "cubic", "fcc", "cubic", "diamond", "diamond", "cubic", "cubic"]
+    sequence = ["cubic", "cubic", "a15", "bcc", "laves", "fcc", "diamond", "bh", "bh", "bh", "bh", "bh", "bh"]
     sequence = [x for x in sequence for _ in range(5)] # duplicate entries to pause on each one
 
     if saveFrames:
@@ -418,7 +421,10 @@ def animateParquetDeformation():
         for d in [1, -1]:
             pos = [0, 0, 0]
             for i in range(0, nx):
-                u = u_center + d * i / nx
+                if parquet:
+                    u = u_center + d * i / nx # deform in a wave from one end to the other
+                else:
+                    u = u_center
                 u_pre = math.floor(u)
                 u_post = u_pre + 1
                 u_frac = u - u_pre
