@@ -227,7 +227,7 @@ def getUnitCell(label):
     c = a + b
     d = a - b
     e = -b
-    f = 0.56 # TODO: work out what this is
+    f = math.sqrt(4 / math.sqrt(3) - 2)
     g = f * 2
     unit_cells = {
         "cubic":   { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
