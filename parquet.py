@@ -77,7 +77,7 @@ def addSurface(target, verts, faces, color, opacity=1, wireframe=False):
     """Add the specified surface to the target."""
     surface = makePolyData(verts, faces)
     if wireframe:
-        radius = 0.01
+        radius = 0.04
         mapper = vtk.vtkPolyDataMapper()
         edge_filter = vtk.vtkFeatureEdges()
         edge_filter.FeatureEdgesOn()
@@ -227,7 +227,7 @@ def getUnitCell(label):
     c = a + b
     d = a - b
     e = -b
-    f = 0.56 # TODO: work out what this is
+    f = math.sqrt(4 / math.sqrt(3) - 2)
     g = f * 2
     unit_cells = {
         "cubic":   { "unit_cell": [(0,0,0),(0,1,0),(1,1,0),(1,0,0),(0,0,1),(0,1,1),(1,1,1),(1,0,1)], "scale": 1, "size": [2,2,2], "name": "Cubic" },
@@ -242,6 +242,20 @@ def getUnitCell(label):
 
 
 def checkBHCenters():
+
+    # output squares in two layers
+    unit_cell = getUnitCell("bh")
+    i_vert = 0
+    with open("bh_square_layers.obj","wt") as f:
+        for xo in range(-2,3,2):
+            for yo in range(-2,3,2):
+                for p in unit_cell["unit_cell"]:
+                    f.write(f"v {' '.join(map(str, [p[0] + xo, p[1] + yo, p[2]]))}\n")
+                    i_vert += 1
+                f.write(f"f {' '.join(map(str, range(i_vert-7, i_vert-3)))}\n")
+                f.write(f"f {' '.join(map(str, range(i_vert-3, i_vert+1)))}\n")
+    exit()
+
     window_size = 800, 800
     background_color = 0.95, 0.9, 0.85
     ren, renWin, iren = makeVTKWindow(window_size, background_color, "Voronoi Honeycombs")
@@ -263,15 +277,21 @@ def checkBHCenters():
             actor = vtk.vtkActor()
             actor.SetMapper(mapper)
             actor.GetProperty().SetRepresentationToWireframe()
+            actor.GetProperty().LightingOff()
+            actor.GetProperty().SetColor(0,0,0)
             ren.AddActor(actor)
 
         if True:
             # Make a list of 3D points
-            c = 0.3862935 #+ u * 0.000001
+            c = 0.3862934 #+ u * 0.000001
             print(c)
             layer_sep = 2-c
             centers = [(0,c,0),(1+c,3,0),(4,2-c,0),(3-c,-1,0)]
+            d = math.sqrt((1+c)*(1+c) + (3-c)*(3-c))
+            oe = math.sqrt(1+(2 - math.sqrt(3))*(2 - math.sqrt(3)))
+            print(d, layer_sep, oe * layer_sep / d)
             v = [(4,-4,0),(4,4,0)]
+            # TODO: this doesn't make a snub-square tiling - the triangles are not equilateral
             # extend by translated copies in XY plane
             centers.extend([(x+i*v[0][0],y+i*v[0][1],z+i*v[0][2]) for x,y,z in centers for i in [-1,1]])
             centers.extend([(x+i*v[1][0],y+i*v[1][1],z+i*v[1][2]) for x,y,z in centers for i in [-1,1]])
@@ -383,7 +403,8 @@ def makeHoneycomb(honeycomb_type="laves"):
         if -1 in indices: # external region including point at infinity
             continue
         verts = v.vertices[indices]
-        faces = scipy.spatial.ConvexHull(verts).simplices
+        cell = scipy.spatial.ConvexHull(verts)
+        faces = cell.simplices
         addSurface(ren, verts, faces, temporallyConsistentRandomColor(iVert, colors), opacity=1, wireframe=False)
         pd = makePolyData(verts, faces)
         obj = vtk.vtkOBJWriter()
@@ -391,7 +412,7 @@ def makeHoneycomb(honeycomb_type="laves"):
         obj.SetFileName(filename)
         obj.SetInputData(pd)
         obj.Write()
-        print(f"Wrote {filename}")
+        print(f"Wrote {filename} with {len(verts)} vertices with volume {cell.volume}")
 
     print("Controls:")
     print("  mouse left drag: rotate the scene")
@@ -602,7 +623,7 @@ def animateParquetDeformation():
 
 if __name__ == "__main__":
 
-    checkBHCenters()
+    #checkBHCenters()
     makeHoneycomb(honeycomb_type="bh")
     #animateTransitions(a="cubic", b="laves", showUnitCell=True, wireframe=True)
     #animateParquetDeformation()
