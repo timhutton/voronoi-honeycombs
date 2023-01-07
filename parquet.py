@@ -241,6 +241,18 @@ def getUnitCell(label):
     return unit_cells[label]
 
 
+def getUnitCellFamily6(label):
+    """ Returns one of a family of unit cells each with 6 cell centers that we can interpolate between.
+           unit_cell : List of 3D points expressed in some convenient scale
+           scale     : Factor to divide by to obtain the points we want
+           size      : Dimensions of the resulting unit cell after dividing points by scale
+    """
+    unit_cells = {
+        "wpm":     { "unit_cell": [(1,2,0),(3,2,0),(2,0,1),(0,1,2),(0,3,2),(2,0,3)], "scale": 2, "size": [2,2,2], "name": "Weaire-Phelan-based monotile discovered by Guy Inchbald and Roger Kaufman in 2007." },
+    }
+    return unit_cells[label]
+
+
 def makeHoneycomb(honeycomb_type="laves"):
     """Construct a honeycombs."""
 
